@@ -45,6 +45,8 @@ type Scene = {
   remaining: number;
   hand: string[];
   draw: string;
+  /** 自分の副露（例: ["6s7s8s"]）。鳴いていなければ書かない */
+  fulou?: string[];
   opponents: Opponent[];
   river: RiverTile[];
 };
@@ -245,6 +247,52 @@ const SCENES: Scene[] = [
       { l: 2, p: "4p" },
     ],
   },
+  {
+    // 自分が鳴いている局面。fulou-find.js が自動対局から拾ったもの
+    // （mahjong-api の data/fulou-find.json 「染め手」の1件目）。
+    //
+    // 自分は上家が切った 7s を 6s8s でチーしている（上家の河の 7s がそれ）。
+    // 対面は筒子を2つ鳴いている（下家の 8p と 6p）。
+    //
+    // ⚠️ 元の記録には点数・残り枚数がない。
+    //    点数は全員25,000点で補った（compare-models.js 局面3と同じ）。
+    //    残り枚数は数え直した: 配牌後70枚 − ツモ14回 = 56枚
+    //      （河16枚のうち、鳴いた直後の打牌3枚はツモなし → 13回 ＋ いまのツモ1回）
+    //    compare-models.js 局面3は70枚としているが、それは配牌直後の枚数で誤り。
+    label: "東3局 序盤 親 鳴き",
+    junme: 4,
+    isOya: true,
+    zhuangfeng: 0,
+    jushu: 2,
+    menfeng: 0,
+    honba: 0,
+    kyotaku: 0,
+    defen: [25000, 25000, 25000, 25000],
+    baopai: "1m",
+    remaining: 56,
+    hand: ["2m", "2m", "6m", "6m", "3p", "6p", "7p", "8p", "4s", "東"],
+    draw: "1s",
+    fulou: ["6s7s8s"],
+    opponents: [{ name: "対面", fulou: ["6p7p8p", "4p5p6p"] }],
+    river: [
+      { l: 0, p: "北" },
+      { l: 1, p: "南" },
+      { l: 2, p: "南" },
+      { l: 3, p: "南" },
+      { l: 0, p: "發" },
+      { l: 1, p: "8m" },
+      { l: 2, p: "發" },
+      { l: 3, p: "中" },
+      { l: 0, p: "1s" },
+      { l: 1, p: "8p" },
+      { l: 2, p: "9s" },
+      { l: 3, p: "7s" },
+      { l: 0, p: "9m" },
+      { l: 1, p: "6p" },
+      { l: 2, p: "2s" },
+      { l: 3, p: "4s" },
+    ],
+  },
 ];
 
 // ============================================================
@@ -261,6 +309,27 @@ function isAka(tile: string) {
 /** 画面に出す文字。赤5は「5m」と書き、色で区別する */
 function tileText(tile: string) {
   return isAka(tile) ? `5${tile[1]}` : tile;
+}
+
+/**
+ * 副露の文字列を1枚ずつに分ける
+ *   "6s7s8s" → ["6s", "7s", "8s"]
+ *   "白白白" → ["白", "白", "白"]
+ * 数牌は「数字＋色」の2文字、字牌は1文字。
+ */
+function splitMeld(meld: string): string[] {
+  const tiles: string[] = [];
+  let i = 0;
+  while (i < meld.length) {
+    if (/[0-9]/.test(meld[i]) && i + 1 < meld.length) {
+      tiles.push(meld.slice(i, i + 2));
+      i += 2;
+    } else {
+      tiles.push(meld[i]);
+      i += 1;
+    }
+  }
+  return tiles;
 }
 
 export default function GameScreen() {
@@ -461,6 +530,19 @@ export default function GameScreen() {
               {tileText(scene.draw)}
             </Text>
           </TouchableOpacity>
+
+          {/* 自分の副露。切れないのでタップできない */}
+          {scene.fulou?.map((meld, i) => (
+            <View key={`fulou-${i}`} style={styles.meld}>
+              {splitMeld(meld).map((tile, j) => (
+                <View key={j} style={styles.meldTile}>
+                  <Text style={[styles.meldTileText, isAka(tile) && styles.akaText]}>
+                    {tileText(tile)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ))}
         </ScrollView>
       </View>
 
@@ -623,6 +705,17 @@ const styles = StyleSheet.create({
   tileText: { fontSize: 15, fontWeight: "700", color: "#1A1A1A" },
   akaText: { color: "#C62828" },
   drawGap: { width: 14 },
+  meld: { flexDirection: "row", marginLeft: 14, alignSelf: "flex-end" },
+  meldTile: {
+    width: 30,
+    height: 42,
+    backgroundColor: "#D8D2C0",
+    borderRadius: 4,
+    marginHorizontal: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  meldTileText: { fontSize: 12, fontWeight: "700", color: "#1A1A1A" },
 
   coach: { height: 190, backgroundColor: "#12332A", paddingHorizontal: 16, paddingTop: 12 },
   coachHeader: { flexDirection: "row", alignItems: "center", gap: 10 },

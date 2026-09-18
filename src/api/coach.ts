@@ -96,6 +96,16 @@ export type AskParams = {
    * 送らなければ危険度は出ない（今までと同じ動き）。
    */
   river?: RiverTile[];
+
+  /**
+   * 自分の副露。1つの面子を1つの文字列で書く（例: ["6s7s8s", "白白白"]）。
+   * 鳴いていなければ送らない（今までと同じ動き）。
+   *
+   * ⚠️ hand には手の内の牌だけを入れる。副露の牌を hand に入れてはいけない。
+   *    手の内 + 副露×3 が13枚になっていないと、サーバーは危険度とAI推奨を出さない。
+   * ⚠️ 誰から・どの牌を鳴いたかは送らない。サーバーは engine.js v3.6 以降が必要。
+   */
+  fulou?: string[];
 };
 
 export async function askCoach(params: AskParams): Promise<AskResult> {
