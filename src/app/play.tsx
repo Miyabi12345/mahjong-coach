@@ -33,6 +33,12 @@ import { getMatchConfig } from "../store/matchStore";
 import { OBJECTIVES } from "../types/config";
 
 const SEAT_NAMES = ["自分", "下家", "対面", "上家"];
+
+/**
+ * リーチ後に1巡ずつ自動で進める間隔（ミリ秒）
+ * ⚠️ とりあえずの値。根拠はない。打ち心地を見て決め直す
+ */
+const RIICHI_STEP_MS = 800;
 const WIND = ["東", "南", "西", "北"];
 
 /** 赤5（0m など）かどうか */
@@ -138,6 +144,15 @@ export default function PlayScreen() {
     // 画面を開いたときに1回だけ始める
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // リーチ後は、少し待ってから自動で1巡進める（押さなくても最後まで過程が見える）
+  const riichiAuto = game?.choices?.type === "riichi_auto";
+  useEffect(() => {
+    if (!riichiAuto || busy) return;
+    const t = setTimeout(() => act({ action: "next" }), RIICHI_STEP_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game, busy]);
 
   const act = async (a: Action) => {
     if (!game || busy) return;
@@ -337,6 +352,13 @@ export default function PlayScreen() {
             )}
             {call.daopai && <Btn label="テンパイ宣言" onPress={() => act({ action: "daopai" })} />}
             <Btn label="見送り" onPress={() => act({ action: "pass" })} />
+          </View>
+        )}
+
+        {choices?.type === "riichi_auto" && (
+          <View style={styles.buttonRow}>
+            <Text style={styles.dim}>リーチ中（自動でツモ切り）</Text>
+            <Btn label="結果まで飛ばす" strong onPress={() => act({ action: "skip" })} />
           </View>
         )}
 

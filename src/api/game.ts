@@ -69,6 +69,8 @@ export type Choices =
       gang: Meld[];
       daopai: boolean;
     }
+  /** リーチ後のツモ切り。アプリが少し待って next を送る（skip でこの局は結果まで飛ばす） */
+  | { type: "riichi_auto"; dapai: TileChoice[] }
   | { type: "daopai"; daopai: boolean }
   | { type: "kyoku_end" }
   | { type: "game_end" };
@@ -86,7 +88,7 @@ export type GameResponse = {
 
 export type Action =
   | { action: "dapai" | "lizhi"; raw: string }
-  | { action: "hule" | "pass" | "pingju" | "daopai" | "next" }
+  | { action: "hule" | "pass" | "pingju" | "daopai" | "next" | "skip" }
   | { action: "gang" | "fulou"; raw: string };
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
