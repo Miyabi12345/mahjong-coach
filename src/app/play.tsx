@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -360,9 +361,6 @@ export default function PlayScreen() {
         <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}>
           <Text style={styles.dim}>← やめる</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.ffToggle, fastForward && styles.ffToggleOn]} onPress={toggleFastForward}>
-          <Text style={[styles.ffToggleText, fastForward && styles.ffToggleTextOn]}>早送り {fastForward ? "オン" : "オフ"}</Text>
-        </TouchableOpacity>
         <Text style={styles.round}>{roundLabel}</Text>
         <View style={styles.doraBox}>
           <Text style={styles.doraLabel}>ドラ</Text>
@@ -448,13 +446,13 @@ export default function PlayScreen() {
         </ScrollView>
       </View>
 
-      {/* 操作 */}
+      {/* 操作（右端に早送りのスイッチ。いつでも切り替えられる） */}
       <View style={styles.actions}>
+      <View style={styles.actionsMain}>
         {busy && !playing && <ActivityIndicator color="#E8B84B" />}
         {playing && (
           <View style={styles.buttonRow}>
             <Text style={styles.dim}>他家が打っています…</Text>
-            <Btn label="早送り" onPress={finishPlayback} />
           </View>
         )}
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -539,6 +537,17 @@ export default function PlayScreen() {
             <Btn label="ホームへ" onPress={() => router.replace("/")} />
           </View>
         )}
+      </View>
+        {/* みやびさんの確認で、毎回押す「早送り」ボタンは使いにくかったので、スイッチ1つにした（2026-09-20） */}
+        <View style={styles.ffSwitch}>
+          <Text style={[styles.ffSwitchText, fastForward && styles.ffSwitchTextOn]}>早送り</Text>
+          <Switch
+            value={fastForward}
+            onValueChange={toggleFastForward}
+            trackColor={{ false: "#3A5A4A", true: "#E8B84B" }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -679,10 +688,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#0F3D2E",
   },
   round: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  ffToggle: { borderWidth: 1, borderColor: "#5A7A6A", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
-  ffToggleOn: { backgroundColor: "#E8B84B", borderColor: "#E8B84B" },
-  ffToggleText: { color: "#A8C5B5", fontSize: 12 },
-  ffToggleTextOn: { color: "#0F3D2E", fontWeight: "700" },
   doraBox: { flexDirection: "row", alignItems: "center", gap: 4 },
   doraLabel: { color: "#E8B84B", fontSize: 13, fontWeight: "700" },
   // ドラの牌の印（金色の枠）
@@ -764,7 +769,11 @@ const styles = StyleSheet.create({
   },
   meldTileText: { fontSize: 12, fontWeight: "700", color: "#1A1A1A" },
 
-  actions: { backgroundColor: "#12332A", paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, gap: 8 },
+  actions: { backgroundColor: "#12332A", paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12 },
+  actionsMain: { flex: 1, gap: 8 },
+  ffSwitch: { flexDirection: "row", alignItems: "center", gap: 6 },
+  ffSwitchText: { color: "#A8C5B5", fontSize: 13 },
+  ffSwitchTextOn: { color: "#E8B84B", fontWeight: "700" },
   buttonRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   button: { backgroundColor: "#1A5C46", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10 },
   buttonStrong: { backgroundColor: "#E8B84B" },
