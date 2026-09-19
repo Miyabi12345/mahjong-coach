@@ -30,7 +30,7 @@ import {
   type RiverTile,
   type TileChoice,
 } from "../api/game";
-import { getMatchConfig } from "../store/matchStore";
+import { getMatchConfig, setMatchConfig } from "../store/matchStore";
 import { OBJECTIVES } from "../types/config";
 
 const SEAT_NAMES = ["自分", "下家", "対面", "上家"];
@@ -166,6 +166,9 @@ export default function PlayScreen() {
   // 再生（他家の打牌を1枚ずつ見せる）
   const [display, setDisplay] = useState<GameView | null>(null);   // いま画面に出している卓
   const [playing, setPlaying] = useState(false);
+  // 早送り（オンなら他家の打牌を1枚ずつ見せず、すぐ出す）。対局中いつでも切り替えられる
+  const [fastForward, setFastForward] = useState(!!getMatchConfig().fastForward);
+  const fastRef = useRef(fastForward);
   const [guard, setGuard] = useState(false);   // 再生直後の押し間違い防止
   const guardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayRef = useRef<GameView | null>(null);
@@ -206,7 +209,7 @@ export default function PlayScreen() {
       base = displayRef.current;
     }
     const evs = res.events.slice(qipaiAt + 1).filter((e) => PLAYBACK_TYPES.includes(e.type));
-    if (!base || !evs.length) {
+    if (fastRef.current || !base || !evs.length) {
       show(res.view);
       setPlaying(false);
       return;
@@ -229,6 +232,14 @@ export default function PlayScreen() {
       timerRef.current = setTimeout(step, delayOf(evs[i]));
     };
     timerRef.current = setTimeout(step, delayOf(evs[0]));
+  };
+
+  const toggleFastForward = () => {
+    const on = !fastRef.current;
+    fastRef.current = on;
+    setFastForward(on);
+    setMatchConfig({ ...getMatchConfig(), fastForward: on });   // 次の対局でも同じにする
+    if (on && timerRef.current) finishPlayback();   // 再生中にオンにしたら、残りをすぐ出す
   };
 
   // 画面を閉じたら再生を止める
@@ -348,6 +359,9 @@ export default function PlayScreen() {
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}>
           <Text style={styles.dim}>← やめる</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.ffToggle, fastForward && styles.ffToggleOn]} onPress={toggleFastForward}>
+          <Text style={[styles.ffToggleText, fastForward && styles.ffToggleTextOn]}>早送り {fastForward ? "オン" : "オフ"}</Text>
         </TouchableOpacity>
         <Text style={styles.round}>{roundLabel}</Text>
         <View style={styles.doraBox}>
@@ -665,6 +679,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#0F3D2E",
   },
   round: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  ffToggle: { borderWidth: 1, borderColor: "#5A7A6A", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  ffToggleOn: { backgroundColor: "#E8B84B", borderColor: "#E8B84B" },
+  ffToggleText: { color: "#A8C5B5", fontSize: 12 },
+  ffToggleTextOn: { color: "#0F3D2E", fontWeight: "700" },
   doraBox: { flexDirection: "row", alignItems: "center", gap: 4 },
   doraLabel: { color: "#E8B84B", fontSize: 13, fontWeight: "700" },
   // ドラの牌の印（金色の枠）

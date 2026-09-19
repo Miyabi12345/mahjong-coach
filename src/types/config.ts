@@ -168,12 +168,18 @@ export type MatchConfig = {
    * 打点・安全度・AI推奨は見ていない。判定はサーバー（engine.js）が行う。
    */
   showRating: boolean;
+  /**
+   * 他家の打牌を1枚ずつ見せずに、すぐ出すか（みやびさんの要望。2026-09-20）
+   * 対局画面の上のバーで、いつでも切り替えられる
+   */
+  fastForward: boolean;
 };
 export const DEFAULT_MATCH: MatchConfig = {
   rule: DEFAULT_RULE,
   objective: DEFAULT_OBJECTIVE,
   level: DEFAULT_LEVEL,
   showRating: true,
+  fastForward: false,
 };
 
 // ===== サーバーに送る形に変換する =====

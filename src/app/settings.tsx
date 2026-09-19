@@ -434,7 +434,7 @@ export default function SettingsScreen() {
         <TouchableOpacity
           style={styles.startButton}
           onPress={() => {
-            setMatchConfig({ rule, objective, level, showRating });
+            setMatchConfig({ ...getMatchConfig(), rule, objective, level, showRating });
             router.push("/play");
           }}
         >
