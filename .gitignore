@@ -32,6 +32,8 @@ yarn-error.*
 
 # local env files
 .env*.local
+# APIキーなどを置く .env は、必ず GitHub に上げない（2026-09-19 追加）
+.env
 
 # typescript
 *.tsbuildinfo
