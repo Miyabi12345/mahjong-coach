@@ -6,7 +6,7 @@
  * 設計: mahjong-api/docs/設計_対局の進行.md
  *
  * ④ で作ったもの: 打牌、リーチ・ツモ・ロン・鳴き・カン・見送りのボタン、局と半荘の結果（簡易）
- * ⑥ で足すもの: コーチへの質問、👍/👎
+ * ⑥ で足したもの: コーチへの質問（切る前の相談／直前の打牌の振り返り）、👍/👎
  */
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -16,12 +16,15 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  askInGame,
   sendAction,
+  sendFeedback,
   startGame,
   type Action,
   type GameEvent,
@@ -175,6 +178,21 @@ export default function PlayScreen() {
   const displayRef = useRef<GameView | null>(null);
   const finalRef = useRef<GameView | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // コーチへの質問（⑥）。質問は OpenAI を呼ぶので、「聞く」を押したときだけ送る
+  const [question, setQuestion] = useState("");
+  const [askTarget, setAskTarget] = useState<"now" | "last">("now");
+  const [asking, setAsking] = useState(false);
+  const [coach, setCoach] = useState<{
+    questionId: string;
+    question: string;
+    label: string;
+    answer: string;
+  } | null>(null);
+  const [coachError, setCoachError] = useState<string | null>(null);
+  // 評価: null=まだ / "bad"=👎 を押して一言を書いているところ / "sent"=送った
+  const [feedback, setFeedback] = useState<null | "bad" | "sent">(null);
+  const [comment, setComment] = useState("");
 
   const show = (v: GameView) => {
     displayRef.current = v;
@@ -334,6 +352,48 @@ export default function PlayScreen() {
   const zimo = choices?.type === "zimo" ? choices : null;
   const call = choices?.type === "call" ? choices : null;
 
+  // 質問できる対象。切る前の相談は自分の番だけ（サーバーも同じ判定）、振り返りはこの局で切ったあと
+  const canAskNow = game.choices?.type === "zimo" && !playing;
+  const canAskLast = !!rating;
+  const target: "now" | "last" | null =
+    askTarget === "now"
+      ? canAskNow ? "now" : canAskLast ? "last" : null
+      : canAskLast ? "last" : canAskNow ? "now" : null;
+
+  const handleAsk = async () => {
+    if (!target || asking) return;
+    const q = question.trim() || (target === "now" ? "何を切ればいい？" : "この打牌はどうだった？");
+    // 切る前に牌を選んでいたら「その牌を切ったら」で聞く
+    const discard = target === "now" && selected ? selected.tile : undefined;
+    const label =
+      target === "now"
+        ? discard ? `いまの局面（${tileText(discard)}を切るなら）` : "いまの局面"
+        : `直前の打牌（${tileText(rating!.discard)}切り）`;
+    setAsking(true);
+    setCoachError(null);
+    try {
+      const r = await askInGame(game.gameId, q, target, discard);
+      setCoach({ questionId: r.questionId, question: q, label, answer: r.answer });
+      setFeedback(null);
+      setComment("");
+      setQuestion("");
+    } catch (e: any) {
+      setCoachError(`質問できませんでした。${e.message}`);
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  const handleFeedback = async (good: boolean, text?: string) => {
+    if (!coach) return;
+    try {
+      await sendFeedback(game.gameId, coach.questionId, good, text?.trim() || undefined);
+      setFeedback("sent");
+    } catch (e: any) {
+      setCoachError(`評価を送れませんでした。${e.message}`);
+    }
+  };
+
   /** 手牌の牌をタップしたとき */
   const onTile = (tile: string, isDraw: boolean) => {
     if (!zimo || busy) return;
@@ -412,6 +472,56 @@ export default function PlayScreen() {
             </View>
           )}
           {rating.recommended && <Text style={styles.dim}>AIなら {tileText(rating.recommended)}切り</Text>}
+        </View>
+      )}
+
+      {/* コーチの回答と 👍/👎 */}
+      {(coach || asking || coachError) && (
+        <View style={styles.coachPanel}>
+          <View style={styles.coachHead}>
+            <Text style={styles.coachTitle}>コーチ</Text>
+            {coach && !asking && (
+              <Text style={[styles.dim, { flex: 1 }]} numberOfLines={1}>
+                {coach.label}「{coach.question}」
+              </Text>
+            )}
+            {(asking || !coach) && <View style={{ flex: 1 }} />}
+            {!asking && (
+              <TouchableOpacity onPress={() => { setCoach(null); setCoachError(null); }}>
+                <Text style={styles.dim}>閉じる ×</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {asking && <ActivityIndicator color="#E8B84B" style={{ marginVertical: 8 }} />}
+          {coachError && <Text style={styles.errorText}>{coachError}</Text>}
+          {coach && !asking && (
+            <>
+              <ScrollView style={styles.coachBody}>
+                <Text style={styles.coachText}>{coach.answer}</Text>
+              </ScrollView>
+              {feedback === "sent" ? (
+                <Text style={styles.dim}>評価を送りました。ありがとうございます</Text>
+              ) : feedback === "bad" ? (
+                <View style={styles.feedbackRow}>
+                  <TextInput
+                    style={[styles.input, styles.commentInput]}
+                    value={comment}
+                    onChangeText={setComment}
+                    placeholder="よくなかった点を一言（書かなくても送れます）"
+                    placeholderTextColor="#5A7A6B"
+                    onSubmitEditing={() => handleFeedback(false, comment)}
+                  />
+                  <Btn label="送る" strong onPress={() => handleFeedback(false, comment)} />
+                </View>
+              ) : (
+                <View style={styles.feedbackRow}>
+                  <Text style={styles.dim}>この回答は役に立ちましたか？</Text>
+                  <Btn label="👍" onPress={() => handleFeedback(true)} />
+                  <Btn label="👎" onPress={() => setFeedback("bad")} />
+                </View>
+              )}
+            </>
+          )}
         </View>
       )}
 
@@ -549,6 +659,44 @@ export default function PlayScreen() {
           />
         </View>
       </View>
+
+      {/* 質問欄。「いまの局面」は自分の番だけ、「直前の打牌」はこの局で切ったあと */}
+      {!game.ended && (
+        <View style={styles.askArea}>
+          <View style={styles.askTargets}>
+            <TargetChip
+              label={selected && canAskNow ? `${tileText(selected.tile)}を切るなら` : "いまの局面"}
+              active={target === "now"}
+              enabled={canAskNow}
+              onPress={() => setAskTarget("now")}
+            />
+            <TargetChip
+              label={rating ? `直前の${tileText(rating.discard)}切り` : "直前の打牌"}
+              active={target === "last"}
+              enabled={canAskLast}
+              onPress={() => setAskTarget("last")}
+            />
+          </View>
+          <View style={styles.askRow}>
+            <TextInput
+              style={styles.input}
+              value={question}
+              onChangeText={setQuestion}
+              placeholder={target ? "コーチに質問（空なら「何を切ればいい？」）" : "自分の番か、切ったあとに質問できます"}
+              placeholderTextColor="#5A7A6B"
+              editable={!!target && !asking}
+              onSubmitEditing={handleAsk}
+            />
+            <TouchableOpacity
+              style={[styles.askButton, (!target || asking) && styles.askButtonDisabled]}
+              onPress={handleAsk}
+              disabled={!target || asking}
+            >
+              <Text style={styles.askText}>聞く</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -608,6 +756,29 @@ function MeldView({ meld, small, dora = [] }: { meld: Meld; small?: boolean; dor
         </View>
       ))}
     </View>
+  );
+}
+
+/** 質問の対象を選ぶ（いまの局面／直前の打牌） */
+function TargetChip({
+  label,
+  active,
+  enabled,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  enabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.chip, active && styles.chipActive, !enabled && styles.tileDisabled]}
+      onPress={onPress}
+      disabled={!enabled}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -782,4 +953,48 @@ const styles = StyleSheet.create({
   callTile: { color: "#FFFFFF", fontSize: 18, fontWeight: "700", marginRight: 4 },
   result: { gap: 4, marginBottom: 8 },
   resultTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+
+  // コーチ（⑥）。見た目は練習問題の画面（game.tsx）に合わせた
+  coachPanel: {
+    backgroundColor: "#12332A",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#2A5A48",
+  },
+  coachHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  coachTitle: { color: "#E8B84B", fontSize: 14, fontWeight: "700" },
+  coachBody: { maxHeight: 180 },
+  coachText: { color: "#DCE9E2", fontSize: 14, lineHeight: 22 },
+  feedbackRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  commentInput: { paddingVertical: 8, fontSize: 13 },
+  askArea: {
+    backgroundColor: "#12332A",
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#2A5A48",
+  },
+  askTargets: { flexDirection: "row", gap: 8, paddingTop: 8 },
+  chip: { borderWidth: 1, borderColor: "#2A5A48", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5 },
+  chipActive: { backgroundColor: "#E8B84B", borderColor: "#E8B84B" },
+  chipText: { color: "#A9C8B8", fontSize: 12 },
+  chipTextActive: { color: "#1A1A1A", fontWeight: "700" },
+  askRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  input: {
+    flex: 1,
+    backgroundColor: "#0B2B20",
+    borderWidth: 1,
+    borderColor: "#2A5A48",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: "#FFFFFF",
+    fontSize: 14,
+  },
+  askButton: { backgroundColor: "#E8B84B", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10 },
+  askButtonDisabled: { backgroundColor: "#5A6F62" },
+  askText: { color: "#1A1A1A", fontSize: 14, fontWeight: "700" },
 });
