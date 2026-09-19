@@ -9,7 +9,7 @@
  * ⑥ で足すもの: コーチへの質問、👍/👎
  */
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -25,6 +25,7 @@ import {
   type Action,
   type GameEvent,
   type GameResponse,
+  type GameView,
   type Meld,
   type RiverTile,
   type TileChoice,
@@ -36,9 +37,61 @@ const SEAT_NAMES = ["自分", "下家", "対面", "上家"];
 
 /**
  * リーチ後に1巡ずつ自動で進める間隔（ミリ秒）
- * ⚠️ とりあえずの値。根拠はない。打ち心地を見て決め直す
+ * みやびさんの確認で 0.8秒は短すぎたので2秒にした（2026-09-20）
  */
-const RIICHI_STEP_MS = 800;
+const RIICHI_STEP_MS = 2000;
+
+/**
+ * 他家の打牌を1枚ずつ見せる間隔（ミリ秒）
+ * 0.8秒では速くて順番が追いにくいとのことで 1.2秒にした（2026-09-20）
+ * ⚠️ 根拠のある値ではない。打ち心地を見て決め直す
+ */
+const DISCARD_INTERVAL_MS = 1200;
+
+/**
+ * 再生が終わった直後、操作ボタンを出すまでの待ち（ミリ秒）
+ * 「早送り」を押した指が、同じ場所に出てきた「ポン」などを押してしまうのを防ぐ
+ * （ブラウザで確認したとき、早送りのつもりでポンしてしまった）
+ */
+const AFTER_PLAYBACK_GUARD_MS = 500;
+
+/** 再生で1つずつ見せる出来事 */
+const PLAYBACK_TYPES = ["dapai", "fulou", "gang"];
+
+/**
+ * 出来事を1つ、表示中の卓に反映する（再生用）
+ * サーバーは「次に自分の番が来るまで」の出来事をまとめて返すので、
+ * アプリで1つずつ卓に足して見せる。再生が終わったら、サーバーの卓（最終形）に置き換える。
+ */
+function applyEvent(v: GameView, e: GameEvent, last: { seat: number | null }): GameView {
+  const n: GameView = JSON.parse(JSON.stringify(v));
+  const s = n.seats[e.seat];
+  if (!s) return n;
+  if (e.type === "dapai") {
+    s.river.push({ p: e.p, tsumogiri: !!e.tsumogiri, riichi: !!e.riichi, called: false });
+    if (e.riichi) s.riichi = true;
+    if (e.seat === 0) {
+      // 自分の打牌（リーチ後のツモ切りなど）。手牌から抜く
+      if (n.me.draw === e.p) n.me.draw = null;
+      else {
+        const i = n.me.hand.indexOf(e.p);
+        if (i >= 0) n.me.hand.splice(i, 1);
+        if (n.me.draw) { n.me.hand.push(n.me.draw); n.me.draw = null; }
+      }
+    }
+    last.seat = e.seat;
+  } else if (e.type === "fulou") {
+    // 鳴かれた牌は、直前に切った人の河の最後の牌
+    if (last.seat != null) {
+      const r = n.seats[last.seat].river;
+      if (r.length) r[r.length - 1].called = true;
+    }
+    s.fulou.push({ tiles: e.fulou, raw: e.raw });
+  } else if (e.type === "gang") {
+    s.fulou.push({ tiles: e.gang, raw: e.raw });   // 加槓などは、再生の最後にサーバーの形に置き換わる
+  }
+  return n;
+}
 const WIND = ["東", "南", "西", "北"];
 
 /** 赤5（0m など）かどうか */
@@ -110,8 +163,83 @@ export default function PlayScreen() {
   const [recent, setRecent] = useState<string[]>([]);
   const [rating, setRating] = useState<{ discard: string; rating: string | null; recommended: string | null } | null>(null);
 
+  // 再生（他家の打牌を1枚ずつ見せる）
+  const [display, setDisplay] = useState<GameView | null>(null);   // いま画面に出している卓
+  const [playing, setPlaying] = useState(false);
+  const [guard, setGuard] = useState(false);   // 再生直後の押し間違い防止
+  const guardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayRef = useRef<GameView | null>(null);
+  const finalRef = useRef<GameView | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const show = (v: GameView) => {
+    displayRef.current = v;
+    setDisplay(v);
+  };
+
+  /** 再生を飛ばして、サーバーの卓（最終形）を出す */
+  const finishPlayback = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    if (finalRef.current) show(finalRef.current);
+    setPlaying(false);
+    setGuard(true);
+    if (guardRef.current) clearTimeout(guardRef.current);
+    guardRef.current = setTimeout(() => setGuard(false), AFTER_PLAYBACK_GUARD_MS);
+  };
+
+  /** 返事の出来事を1つずつ再生する */
+  const startPlayback = (res: GameResponse) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    finalRef.current = res.view;
+
+    // 新しい局が始まっていたら、空の卓から再生する
+    const qipaiAt = res.events.map((e) => e.type).lastIndexOf("qipai");
+    let base: GameView | null;
+    if (qipaiAt >= 0) {
+      base = {
+        ...res.view,
+        seats: res.view.seats.map((s) => ({ ...s, river: [], fulou: [], riichi: false })),
+        me: { ...res.view.me, draw: null },
+      };
+    } else {
+      base = displayRef.current;
+    }
+    const evs = res.events.slice(qipaiAt + 1).filter((e) => PLAYBACK_TYPES.includes(e.type));
+    if (!base || !evs.length) {
+      show(res.view);
+      setPlaying(false);
+      return;
+    }
+
+    show(base);
+    setPlaying(true);
+    let cur = base;
+    let i = 0;
+    const last = { seat: null as number | null };
+    // 自分の打牌はすぐ、他家の打牌は少し間をあけて見せる
+    const delayOf = (e?: GameEvent) => (e && e.seat === 0 ? 0 : DISCARD_INTERVAL_MS);
+    const step = () => {
+      if (i >= evs.length) {
+        finishPlayback();
+        return;
+      }
+      cur = applyEvent(cur, evs[i++], last);
+      show(cur);
+      timerRef.current = setTimeout(step, delayOf(evs[i]));
+    };
+    timerRef.current = setTimeout(step, delayOf(evs[0]));
+  };
+
+  // 画面を閉じたら再生を止める
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (guardRef.current) clearTimeout(guardRef.current);
+  }, []);
+
   const apply = (res: GameResponse) => {
     setGame(res);
+    startPlayback(res);
     setSelected(null);
     setRiichiMode(false);
     const lines = res.events.map(eventText).filter((x): x is string => !!x);
@@ -148,11 +276,11 @@ export default function PlayScreen() {
   // リーチ後は、少し待ってから自動で1巡進める（押さなくても最後まで過程が見える）
   const riichiAuto = game?.choices?.type === "riichi_auto";
   useEffect(() => {
-    if (!riichiAuto || busy) return;
+    if (!riichiAuto || busy || playing) return;
     const t = setTimeout(() => act({ action: "next" }), RIICHI_STEP_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game, busy]);
+  }, [game, busy, playing]);
 
   const act = async (a: Action) => {
     if (!game || busy) return;
@@ -187,7 +315,9 @@ export default function PlayScreen() {
     );
   }
 
-  const { view, choices } = game;
+  // 再生中は、再生している卓を出し、操作はできないようにする
+  const view = display ?? game.view;
+  const choices = playing || guard ? null : game.choices;
   const me = view.seats[0];
   const zimo = choices?.type === "zimo" ? choices : null;
   const call = choices?.type === "call" ? choices : null;
@@ -306,7 +436,13 @@ export default function PlayScreen() {
 
       {/* 操作 */}
       <View style={styles.actions}>
-        {busy && <ActivityIndicator color="#E8B84B" />}
+        {busy && !playing && <ActivityIndicator color="#E8B84B" />}
+        {playing && (
+          <View style={styles.buttonRow}>
+            <Text style={styles.dim}>他家が打っています…</Text>
+            <Btn label="早送り" onPress={finishPlayback} />
+          </View>
+        )}
         {error && <Text style={styles.errorText}>{error}</Text>}
 
         {zimo && !busy && (
@@ -383,7 +519,7 @@ export default function PlayScreen() {
           </View>
         )}
 
-        {game.ended && (
+        {game.ended && !playing && (
           <View style={styles.buttonRow}>
             <Btn label="もう一度打つ" strong onPress={() => { setGame(null); setRating(null); setRecent([]); begin(); }} />
             <Btn label="ホームへ" onPress={() => router.replace("/")} />
