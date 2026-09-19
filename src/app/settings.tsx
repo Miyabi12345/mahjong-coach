@@ -435,7 +435,7 @@ export default function SettingsScreen() {
           style={styles.startButton}
           onPress={() => {
             setMatchConfig({ rule, objective, level, showRating });
-            router.push("/game");
+            router.push("/play");
           }}
         >
           <Text style={styles.startText}>この設定で対局する</Text>

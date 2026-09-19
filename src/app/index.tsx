@@ -15,10 +15,17 @@ export default function HomeScreen() {
       <View style={styles.menu}>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.push("/game")}
+          onPress={() => router.push("/play")}
         >
           <Text style={styles.primaryButtonText}>対局をはじめる</Text>
-          <Text style={styles.primaryButtonSub}>4人麻雀 / 東風 / 赤あり</Text>
+          <Text style={styles.primaryButtonSub}>AI 3人と打つ（ルールは対局設定のとおり）</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => router.push("/game")}
+        >
+          <Text style={styles.secondaryButtonText}>練習問題</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
