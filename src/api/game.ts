@@ -39,7 +39,10 @@ export type GameView = {
     jushu: number;
     changbang: number;
     lizhibang: number;
+    /** ドラ表示牌 */
     baopai: string[];
+    /** ドラそのもの（表示牌の次の牌）。カンで増えたら全部 */
+    dora: string[];
     paishu: number | null;
   };
   seats: Seat[];

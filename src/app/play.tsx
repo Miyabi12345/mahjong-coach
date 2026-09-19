@@ -40,6 +40,10 @@ const isAka = (tile: string) => tile.length === 2 && tile[0] === "0";
 /** 画面に出す文字。赤5は「5m」と書き、色で区別する */
 const tileText = (tile: string) => (isAka(tile) ? `5${tile[1]}` : tile);
 
+/** ドラかどうか。赤5（0m）は5mとして比べる */
+const isDora = (tile: string, dora: string[]) =>
+  dora.includes(isAka(tile) ? `5${tile[1]}` : tile);
+
 /** "6s7s8s" → ["6s","7s","8s"]。数牌は2文字、字牌は1文字 */
 function splitMeld(meld: string): string[] {
   const out: string[] = [];
@@ -189,7 +193,8 @@ export default function PlayScreen() {
   const canCut = (tile: string, isDraw: boolean) =>
     !!zimo && !!rawFor(tile, isDraw, riichiMode ? zimo.lizhi : zimo.dapai);
 
-  const r = view.round;
+  // 古いサーバー（ドラの項目がない）でも止まらないように、空の配列にしておく
+  const r = { ...view.round, dora: view.round.dora ?? [] };
   const roundLabel = `${WIND[r.zhuangfeng]}${r.jushu + 1}局 ${r.changbang}本場${r.lizhibang ? ` 供託${r.lizhibang}` : ""}`;
 
   return (
@@ -200,9 +205,15 @@ export default function PlayScreen() {
           <Text style={styles.dim}>← やめる</Text>
         </TouchableOpacity>
         <Text style={styles.round}>{roundLabel}</Text>
-        <Text style={styles.dim}>
-          ドラ表示 {r.baopai.map(tileText).join(" ")}  残り {r.paishu ?? "-"}
-        </Text>
+        <View style={styles.doraBox}>
+          <Text style={styles.doraLabel}>ドラ</Text>
+          {r.dora.map((d, i) => (
+            <View key={i} style={[styles.riverTile, styles.doraTile]}>
+              <Text style={[styles.riverTileText, isAka(d) && styles.akaText]}>{tileText(d)}</Text>
+            </View>
+          ))}
+          <Text style={styles.dim}>（表示 {r.baopai.map(tileText).join(" ")}）  残り {r.paishu ?? "-"}</Text>
+        </View>
       </View>
 
       <ScrollView style={styles.table} contentContainerStyle={{ paddingBottom: 8 }}>
@@ -218,12 +229,12 @@ export default function PlayScreen() {
                 <Text style={styles.score}>{s.score.toLocaleString()}</Text>
                 {s.riichi && <Text style={styles.riichiBadge}>リーチ</Text>}
                 {s.fulou.map((m, i) => (
-                  <MeldView key={i} meld={m} small />
+                  <MeldView key={i} meld={m} small dora={r.dora} />
                 ))}
               </View>
               <View style={styles.river}>
                 {s.river.map((t, i) => (
-                  <RiverTileView key={i} t={t} />
+                  <RiverTileView key={i} t={t} dora={r.dora} />
                 ))}
               </View>
             </View>
@@ -255,6 +266,7 @@ export default function PlayScreen() {
               key={i}
               tile={tile}
               selected={selected?.tile === tile && !selected.isDraw}
+              dora={isDora(tile, r.dora)}
               enabled={canCut(tile, false)}
               onPress={() => onTile(tile, false)}
             />
@@ -265,13 +277,14 @@ export default function PlayScreen() {
               <TileButton
                 tile={view.me.draw}
                 selected={selected?.tile === view.me.draw && !!selected?.isDraw}
+                dora={isDora(view.me.draw, r.dora)}
                 enabled={canCut(view.me.draw, true)}
                 onPress={() => onTile(view.me.draw!, true)}
               />
             </>
           )}
           {me.fulou.map((m, i) => (
-            <MeldView key={i} meld={m} />
+            <MeldView key={i} meld={m} dora={r.dora} />
           ))}
         </ScrollView>
       </View>
@@ -367,16 +380,18 @@ function TileButton({
   tile,
   selected,
   enabled,
+  dora,
   onPress,
 }: {
   tile: string;
   selected: boolean;
   enabled: boolean;
+  dora?: boolean;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity
-      style={[styles.tile, selected && styles.tileSelected, !enabled && styles.tileDisabled]}
+      style={[styles.tile, dora && styles.doraTile, selected && styles.tileSelected, !enabled && styles.tileDisabled]}
       onPress={onPress}
       disabled={!enabled}
     >
@@ -385,11 +400,12 @@ function TileButton({
   );
 }
 
-function RiverTileView({ t }: { t: RiverTile }) {
+function RiverTileView({ t, dora }: { t: RiverTile; dora: string[] }) {
   return (
     <View
       style={[
         styles.riverTile,
+        isDora(t.p, dora) && styles.doraTile,
         t.riichi && styles.riverTileRiichi,
         t.tsumogiri && styles.riverTileTsumogiri,
         t.called && styles.riverTileCalled,
@@ -400,11 +416,11 @@ function RiverTileView({ t }: { t: RiverTile }) {
   );
 }
 
-function MeldView({ meld, small }: { meld: Meld; small?: boolean }) {
+function MeldView({ meld, small, dora = [] }: { meld: Meld; small?: boolean; dora?: string[] }) {
   return (
     <View style={[styles.meld, small && { marginLeft: 6 }]}>
       {splitMeld(meld.tiles).map((t, i) => (
-        <View key={i} style={small ? styles.meldTileSmall : styles.meldTile}>
+        <View key={i} style={[small ? styles.meldTileSmall : styles.meldTile, isDora(t, dora) && styles.doraTile]}>
           <Text style={[small ? styles.riverTileText : styles.meldTileText, isAka(t) && styles.akaText]}>
             {tileText(t)}
           </Text>
@@ -435,6 +451,11 @@ function ResultView({ result }: { result: GameEvent | null }) {
           {who}の和了（{from}） {result.defen}点
         </Text>
         <Text style={styles.dim}>{yaku}</Text>
+        {result.uradora && (
+          <Text style={styles.dim}>
+            裏ドラ {result.uradora.map(tileText).join(" ")}（表示 {result.fubaopai.map(tileText).join(" ")}）
+          </Text>
+        )}
         <Fenpei fenpei={result.fenpei} />
       </View>
     );
@@ -486,6 +507,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#0F3D2E",
   },
   round: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  doraBox: { flexDirection: "row", alignItems: "center", gap: 4 },
+  doraLabel: { color: "#E8B84B", fontSize: 13, fontWeight: "700" },
+  // ドラの牌の印（金色の枠）
+  doraTile: { borderWidth: 2, borderColor: "#E8B84B" },
 
   table: { flex: 1, backgroundColor: "#0F3D2E", paddingHorizontal: 12 },
   seatBlock: { marginTop: 8 },
