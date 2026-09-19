@@ -157,11 +157,23 @@ export const PLAYER_LEVELS: { id: PlayerLevel; label: string; description: strin
 
 export const DEFAULT_LEVEL: PlayerLevel = "intermediate";
 // ===== 対局設定 =====
-export type MatchConfig = { rule: RuleConfig; objective: ObjectiveId; level: PlayerLevel };
+export type MatchConfig = {
+  rule: RuleConfig;
+  objective: ObjectiveId;
+  level: PlayerLevel;
+  /**
+   * 打牌のあとに ○× を出すか（みやびさんの決定。2026-09-19）
+   *   ○ … 手が遠くならない打牌の中で、有効牌が最大
+   *   × … それ以外
+   * 打点・安全度・AI推奨は見ていない。判定はサーバー（engine.js）が行う。
+   */
+  showRating: boolean;
+};
 export const DEFAULT_MATCH: MatchConfig = {
   rule: DEFAULT_RULE,
   objective: DEFAULT_OBJECTIVE,
   level: DEFAULT_LEVEL,
+  showRating: true,
 };
 
 // ===== サーバーに送る形に変換する =====

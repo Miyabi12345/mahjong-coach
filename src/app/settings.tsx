@@ -33,6 +33,7 @@ export default function SettingsScreen() {
   const [objective, setObjective] = useState<ObjectiveId>(saved.objective);
   const [showDetail, setShowDetail] = useState(false);
   const [level, setLevel] = useState<PlayerLevel>(saved.level);
+  const [showRating, setShowRating] = useState<boolean>(saved.showRating ?? true);
 
   const isSanma = rule.playerCount === 3;
   const presets = getPresets(rule.playerCount);
@@ -397,6 +398,15 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         ))}
 
+        {/* ===== 表示 ===== */}
+        <Text style={styles.section}>表示</Text>
+        <Toggle
+          label="手の進みの ○× を表示する"
+          note="切った牌が、有効牌をいちばん多く残す打牌なら ○。打点や安全度は見ていません"
+          value={showRating}
+          onChange={setShowRating}
+        />
+
         {/* ===== 目的 ===== */}
         <Text style={styles.section}>今回の目的</Text>
 
@@ -424,7 +434,7 @@ export default function SettingsScreen() {
         <TouchableOpacity
           style={styles.startButton}
           onPress={() => {
-            setMatchConfig({ rule, objective, level });
+            setMatchConfig({ rule, objective, level, showRating });
             router.push("/game");
           }}
         >

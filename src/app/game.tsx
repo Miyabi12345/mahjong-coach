@@ -343,7 +343,7 @@ export default function GameScreen() {
   const [danger, setDanger] = useState<DangerInfo | null>(null);
   const [sceneIdx, setSceneIdx] = useState(0);
 
-  const { rule, objective, level } = getMatchConfig();
+  const { rule, objective, level, showRating } = getMatchConfig();
   const scene = SCENES[sceneIdx];
   const objectiveLabel = OBJECTIVES.find((o) => o.id === objective)?.label ?? "標準";
   const umaLabel = getPresets(rule.playerCount).find((p) => p.id === rule.umaOka)?.label ?? "";
@@ -550,7 +550,8 @@ export default function GameScreen() {
       <View style={styles.coach}>
         <View style={styles.coachHeader}>
           <Text style={styles.coachTitle}>AI Coach</Text>
-          {rating && (
+          {/* 手の進みの ○×。設定で表示しないこともできる */}
+          {showRating !== false && rating && (
             <View
               style={[
                 styles.badge,
