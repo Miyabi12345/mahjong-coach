@@ -570,7 +570,8 @@ export default function GameScreen() {
           <Text style={styles.safeLine}>
             安全な順:{" "}
             {danger.safest
-              .map((s) => `${tileText(s.discard)}${s.rate != null ? `(${s.rate}%)` : ""}`)
+              // 放銃率は一の位まで（v3.5 の決まり。小数第1位は誤差の中）
+              .map((s) => `${tileText(s.discard)}${s.rate != null ? `(約${Math.round(s.rate)}%)` : ""}`)
               .join(" → ")}
           </Text>
         ) : null}
