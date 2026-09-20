@@ -352,8 +352,11 @@ export default function PlayScreen() {
   const zimo = choices?.type === "zimo" ? choices : null;
   const call = choices?.type === "call" ? choices : null;
 
-  // 質問できる対象。切る前の相談は自分の番だけ（サーバーも同じ判定）、振り返りはこの局で切ったあと
-  const canAskNow = game.choices?.type === "zimo" && !playing;
+  // 質問できる対象。振り返りはこの局で切ったあと。
+  // 「いまの局面」は、自分のツモ番（何を切るか）と、鳴ける場面（鳴くかどうか）の両方
+  // （どちらの相談になるかはサーバーが決める。2026-09-21 に鳴きの場面を足した）
+  const askCall = game.choices?.type === "call" ? game.choices : null;
+  const canAskNow = (game.choices?.type === "zimo" || !!askCall) && !playing;
   const canAskLast = !!rating;
   const target: "now" | "last" | null =
     askTarget === "now"
@@ -362,13 +365,17 @@ export default function PlayScreen() {
 
   const handleAsk = async () => {
     if (!target || asking) return;
-    const q = question.trim() || (target === "now" ? "何を切ればいい？" : "この打牌はどうだった？");
-    // 切る前に牌を選んでいたら「その牌を切ったら」で聞く
-    const discard = target === "now" && selected ? selected.tile : undefined;
+    const q =
+      question.trim() ||
+      (target === "last" ? "この打牌はどうだった？" : askCall ? "鳴くべき？" : "何を切ればいい？");
+    // 切る前に牌を選んでいたら「その牌を切ったら」で聞く（鳴きの相談では使わない）
+    const discard = target === "now" && !askCall && selected ? selected.tile : undefined;
     const label =
-      target === "now"
-        ? discard ? `いまの局面（${tileText(discard)}を切るなら）` : "いまの局面"
-        : `直前の打牌（${tileText(rating!.discard)}切り）`;
+      target === "last"
+        ? `直前の打牌（${tileText(rating!.discard)}切り）`
+        : askCall
+          ? `鳴きの相談（${askCall.tile ? tileText(askCall.tile) : ""}）`
+          : discard ? `いまの局面（${tileText(discard)}を切るなら）` : "いまの局面";
     setAsking(true);
     setCoachError(null);
     try {
@@ -665,7 +672,11 @@ export default function PlayScreen() {
         <View style={styles.askArea}>
           <View style={styles.askTargets}>
             <TargetChip
-              label={selected && canAskNow ? `${tileText(selected.tile)}を切るなら` : "いまの局面"}
+              label={
+                askCall ? `この${askCall.tile ? tileText(askCall.tile) : "鳴き"}を鳴くか`
+                  : selected && canAskNow ? `${tileText(selected.tile)}を切るなら`
+                  : "いまの局面"
+              }
               active={target === "now"}
               enabled={canAskNow}
               onPress={() => setAskTarget("now")}
@@ -682,7 +693,11 @@ export default function PlayScreen() {
               style={styles.input}
               value={question}
               onChangeText={setQuestion}
-              placeholder={target ? "コーチに質問（空なら「何を切ればいい？」）" : "自分の番か、切ったあとに質問できます"}
+              placeholder={
+                !target ? "自分の番か、切ったあとに質問できます"
+                  : askCall && target === "now" ? "コーチに質問（空なら「鳴くべき？」）"
+                  : "コーチに質問（空なら「何を切ればいい？」）"
+              }
               placeholderTextColor="#5A7A6B"
               editable={!!target && !asking}
               onSubmitEditing={handleAsk}

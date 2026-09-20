@@ -113,12 +113,19 @@ export function sendAction(gameId: string, action: Action) {
 export type AskAnswer = {
   questionId: string;
   answer: string;
-  recommended: string;
+  recommended: string | null;
   riichi: boolean;
   rating: "○" | "×" | null;
+  /** 鳴きの相談のときだけ付く（出た牌とAIの判断） */
+  fulou?: { tile: string | null; ai: string };
 };
 
-/** 質問。target: 'now'=切る前の相談 / 'last'=直前の打牌の振り返り */
+/**
+ * 質問。target: 'now'=いまの局面 / 'last'=直前の打牌の振り返り
+ *
+ * 'now' は、自分のツモ番なら「何を切るか」、鳴ける場面なら「鳴くかどうか」の相談になる
+ * （どちらかはサーバーが局面を見て決める。mahjong-api の game-api.js）
+ */
 export function askInGame(
   gameId: string,
   question: string,
