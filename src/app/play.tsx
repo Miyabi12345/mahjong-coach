@@ -145,9 +145,9 @@ function eventText(e: GameEvent): string | null {
     case "dapai":
       return `${who}: ${tileText(e.p)}${e.riichi ? " リーチ" : ""}`;
     case "fulou":
-      return `${who}: 鳴き ${e.fulou}`;
+      return `${who}: 鳴き ${splitMeld(e.fulou).map(tileText).join("")}`;   // 0p（赤5）を 5p と書く
     case "gang":
-      return `${who}: カン ${e.gang}`;
+      return `${who}: カン ${splitMeld(e.gang).map(tileText).join("")}`;
     case "hule":
       return `${who}: 和了`;
     case "pingju":
@@ -604,7 +604,7 @@ export default function PlayScreen() {
               />
             )}
             {zimo.gang.map((m) => (
-              <Btn key={m.raw} label={`カン ${m.tiles}`} onPress={() => act({ action: "gang", raw: m.raw })} />
+              <Btn key={m.raw} label="カン" tiles={splitMeld(m.tiles)} onPress={() => act({ action: "gang", raw: m.raw })} />
             ))}
             {zimo.pingju && <Btn label="九種九牌" onPress={() => act({ action: "pingju" })} />}
             {selected && (
@@ -624,11 +624,16 @@ export default function PlayScreen() {
 
         {call && !busy && (
           <View style={styles.buttonRow}>
-            {call.tile && <Text style={styles.callTile}>{tileText(call.tile)}</Text>}
+            {call.tile && (
+              <View style={styles.callTileBox}>
+                <TileFace tile={call.tile} size="meld" />
+              </View>
+            )}
             {call.hule && <Btn label="ロン" strong onPress={() => act({ action: "hule" })} />}
             {[...call.chi.map((m) => ({ m, k: "チー" })), ...call.peng.map((m) => ({ m, k: "ポン" })), ...call.gang.map((m) => ({ m, k: "カン" }))].map(
               ({ m, k }) => (
-                <Btn key={k + m.raw} label={`${k} ${m.tiles}`} onPress={() => act({ action: "fulou", raw: m.raw })} />
+                // 鳴いてできる面子は牌の絵で見せる（以前は「チー 4p0p6p」と表記がそのまま出ていた。0p＝赤5）
+                <Btn key={k + m.raw} label={k} tiles={splitMeld(m.tiles)} onPress={() => act({ action: "fulou", raw: m.raw })} />
               )
             )}
             {call.daopai && <Btn label="テンパイ宣言" onPress={() => act({ action: "daopai" })} />}
@@ -813,10 +818,15 @@ function TargetChip({
   );
 }
 
-function Btn({ label, onPress, strong }: { label: string; onPress: () => void; strong?: boolean }) {
+function Btn({ label, onPress, strong, tiles }: { label: string; onPress: () => void; strong?: boolean; tiles?: string[] }) {
   return (
-    <TouchableOpacity style={[styles.button, strong && styles.buttonStrong]} onPress={onPress}>
-      <Text style={[styles.buttonText, strong && styles.buttonTextStrong]}>{label}</Text>
+    <TouchableOpacity style={[styles.button, strong && styles.buttonStrong, tiles && styles.buttonWithTiles]} onPress={onPress}>
+      <Text style={[styles.buttonText, strong && styles.buttonTextStrong, tiles && { marginRight: 5 }]}>{label}</Text>
+      {tiles?.map((t, i) => (
+        <View key={i} style={styles.btnTile}>
+          <TileFace tile={t} size="small" />
+        </View>
+      ))}
     </TouchableOpacity>
   );
 }
@@ -953,6 +963,9 @@ const styles = StyleSheet.create({
   buttonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
   buttonTextStrong: { color: "#1A1A1A" },
   callTile: { color: "#FFFFFF", fontSize: 18, fontWeight: "700", marginRight: 4 },
+  callTileBox: { borderRadius: 4, overflow: "hidden", marginRight: 4 },
+  buttonWithTiles: { flexDirection: "row", alignItems: "center", gap: 1 },
+  btnTile: { borderRadius: 2, overflow: "hidden", marginLeft: 1 },
   result: { gap: 4, marginBottom: 8 },
   resultTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
 
