@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import { Board } from "../components/Board";
 import { MeldTiles } from "../components/MeldTiles";
+import { ResultView } from "../components/ResultView";
 import { getConsent } from "../consent/consent";
 import { useRecorder } from "../voice/useRecorder";
 import { TileFace } from "../components/TileFace";
@@ -776,14 +777,14 @@ export default function PlayScreen() {
 
         {choices?.type === "kyoku_end" && !busy && (
           <View>
-            <ResultView result={game.result} />
+            <ResultView result={game.result} baopai={view.round.baopai} />
             <Btn label="次の局へ" strong onPress={() => act({ action: "next" })} />
           </View>
         )}
 
         {choices?.type === "game_end" && !busy && (
           <View>
-            <ResultView result={game.result} />
+            <ResultView result={game.result} baopai={view.round.baopai} />
             <Btn label="終わる" strong onPress={() => act({ action: "next" })} />
           </View>
         )}
@@ -956,58 +957,6 @@ function Btn({ label, onPress, strong, tiles }: { label: string; onPress: () => 
         </View>
       ))}
     </TouchableOpacity>
-  );
-}
-
-/** 局・半荘の結果（簡易。見た目は⑤で仕上げる） */
-function ResultView({ result }: { result: GameEvent | null }) {
-  if (!result) return null;
-  if (result.type === "hule") {
-    const who = SEAT_NAMES[result.seat];
-    const from = result.from == null ? "ツモ" : `${SEAT_NAMES[result.from]}から`;
-    const yaku = (result.hupai ?? []).map((h: any) => `${h.name}${h.fanshu}`).join(" ");
-    return (
-      <View style={styles.result}>
-        <Text style={styles.resultTitle}>
-          {who}の和了（{from}） {result.defen}点
-        </Text>
-        <Text style={styles.dim}>{yaku}</Text>
-        {result.uradora && (
-          <Text style={styles.dim}>
-            裏ドラ {result.uradora.map(tileText).join(" ")}（表示 {result.fubaopai.map(tileText).join(" ")}）
-          </Text>
-        )}
-        <Fenpei fenpei={result.fenpei} />
-      </View>
-    );
-  }
-  if (result.type === "pingju") {
-    return (
-      <View style={styles.result}>
-        <Text style={styles.resultTitle}>流局（{result.name}）</Text>
-        <Fenpei fenpei={result.fenpei} />
-      </View>
-    );
-  }
-  if (result.type === "jieju") {
-    const id = result.humanId;
-    return (
-      <View style={styles.result}>
-        <Text style={styles.resultTitle}>
-          終局　あなたは{result.rank?.[id]}位（{result.defen?.[id]?.toLocaleString()}点 / {result.point?.[id]}）
-        </Text>
-      </View>
-    );
-  }
-  return null;
-}
-
-function Fenpei({ fenpei }: { fenpei: number[] | null }) {
-  if (!fenpei) return null;
-  return (
-    <Text style={styles.dim}>
-      {fenpei.map((v, i) => `${SEAT_NAMES[i]} ${v > 0 ? "+" : ""}${v}`).join("　")}
-    </Text>
   );
 }
 
