@@ -18,8 +18,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import { Board } from "../components/Board";
 import { TileFace } from "../components/TileFace";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -157,6 +159,7 @@ function eventText(e: GameEvent): string | null {
 
 export default function PlayScreen() {
   const router = useRouter();
+  const { width: winWidth } = useWindowDimensions();
   const { rule, objective, level, showRating } = getMatchConfig();
   const objectiveLabel = OBJECTIVES.find((o) => o.id === objective)?.label ?? "標準";
 
@@ -436,6 +439,8 @@ export default function PlayScreen() {
 
   // 古いサーバー（ドラの項目がない）でも止まらないように、空の配列にしておく
   const r = { ...view.round, dora: view.round.dora ?? [] };
+  // 盤面の一辺：画面の幅に合わせる（大きい画面では 520 まで）
+  const boardSize = Math.min(winWidth - 16, 520);
   const roundLabel = `${WIND[r.zhuangfeng]}${r.jushu + 1}局 ${r.changbang}本場${r.lizhibang ? ` 供託${r.lizhibang}` : ""}`;
 
   return (
@@ -445,42 +450,15 @@ export default function PlayScreen() {
         <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}>
           <Text style={styles.dim}>← やめる</Text>
         </TouchableOpacity>
+        {/* 局・ドラ・残り枚数は、盤面の中央に出す（2026-09-22） */}
         <Text style={styles.round}>{roundLabel}</Text>
-        <View style={styles.doraBox}>
-          <Text style={styles.doraLabel}>ドラ</Text>
-          {r.dora.map((d, i) => (
-            <View key={i} style={[styles.riverTile, styles.doraTile]}>
-              <TileFace tile={d} size="small" />
-            </View>
-          ))}
-          <Text style={styles.dim}>（表示 {r.baopai.map(tileText).join(" ")}）  残り {r.paishu ?? "-"}</Text>
-        </View>
       </View>
 
       <ScrollView style={styles.table} contentContainerStyle={{ paddingBottom: 8 }}>
-        {/* 他家（上家・対面・下家）と自分の河 */}
-        {[3, 2, 1, 0].map((rel) => {
-          const s = view.seats[rel];
-          return (
-            <View key={rel} style={styles.seatBlock}>
-              <View style={styles.seatHead}>
-                <Text style={styles.seatName}>
-                  {s.name}（{WIND[s.menfeng]}）
-                </Text>
-                <Text style={styles.score}>{s.score.toLocaleString()}</Text>
-                {s.riichi && <Text style={styles.riichiBadge}>リーチ</Text>}
-                {s.fulou.map((m, i) => (
-                  <MeldView key={i} meld={m} small dora={r.dora} />
-                ))}
-              </View>
-              <View style={styles.river}>
-                {s.river.map((t, i) => (
-                  <RiverTileView key={i} t={t} dora={r.dora} />
-                ))}
-              </View>
-            </View>
-          );
-        })}
+        {/* 卓：中央に局の情報、まわりに4人の河（天鳳のような配置。2026-09-22 みやびさんの要望） */}
+        <View style={{ paddingTop: 8 }}>
+          <Board view={{ ...view, round: r }} size={boardSize} />
+        </View>
 
         {/* 直前の出来事 */}
         {recent.length > 0 && <Text style={styles.recent}>{recent.join("　")}</Text>}

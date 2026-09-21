@@ -61,9 +61,10 @@ export function tileHeight(size: TileSize) {
 }
 
 /** 牌1枚の絵。枠・選択・薄く表示などは、外側の View で付ける */
-export function TileFace({ tile, size, back }: { tile: string; size: TileSize; back?: boolean }) {
-  const w = TILE_WIDTH[size];
-  const h = tileHeight(size);
+/** width を渡すと、その幅で描く（盤面の大きさに合わせるとき） */
+export function TileFace({ tile, size, back, width }: { tile: string; size: TileSize; back?: boolean; width?: number }) {
+  const w = width ?? TILE_WIDTH[size];
+  const h = Math.round((w * 4) / 3);
   const face = FACES[tile];
   return (
     // Front.png は光沢と影だけの半透明の絵なので、牌の地の色は自分で塗る
