@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { TileFace } from "../components/TileFace";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { askCoach, type DangerInfo, type RiverTile } from "../api/coach";
 import { getMatchConfig } from "../store/matchStore";
@@ -482,14 +483,7 @@ export default function GameScreen() {
                       t.tsumogiri && styles.riverTileTsumogiri,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.riverTileText,
-                        isAka(t.p) && styles.akaText,
-                      ]}
-                    >
-                      {tileText(t.p)}
-                    </Text>
+                    <TileFace tile={t.p} size="river" />
                   </View>
                 ))}
               </View>
@@ -512,9 +506,7 @@ export default function GameScreen() {
               style={[styles.tile, selected === tile && styles.tileSelected]}
               onPress={() => setSelected(tile)}
             >
-              <Text style={[styles.tileText, isAka(tile) && styles.akaText]}>
-                {tileText(tile)}
-              </Text>
+              <TileFace tile={tile} size="hand" />
             </TouchableOpacity>
           ))}
           <View style={styles.drawGap} />
@@ -526,9 +518,7 @@ export default function GameScreen() {
             ]}
             onPress={() => setSelected(scene.draw)}
           >
-            <Text style={[styles.tileText, isAka(scene.draw) && styles.akaText]}>
-              {tileText(scene.draw)}
-            </Text>
+            <TileFace tile={scene.draw} size="hand" />
           </TouchableOpacity>
 
           {/* 自分の副露。切れないのでタップできない */}
@@ -536,9 +526,7 @@ export default function GameScreen() {
             <View key={`fulou-${i}`} style={styles.meld}>
               {splitMeld(meld).map((tile, j) => (
                 <View key={j} style={styles.meldTile}>
-                  <Text style={[styles.meldTileText, isAka(tile) && styles.akaText]}>
-                    {tileText(tile)}
-                  </Text>
+                  <TileFace tile={tile} size="meld" />
                 </View>
               ))}
             </View>
@@ -678,45 +666,23 @@ const styles = StyleSheet.create({
   riverRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 5 },
   riverLabel: { color: "#7FA893", fontSize: 10, width: 30, marginTop: 3 },
   riverTiles: { flex: 1, flexDirection: "row", flexWrap: "wrap", gap: 2 },
-  riverTile: {
-    backgroundColor: "#D8D2C0",
-    borderRadius: 3,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-    minWidth: 22,
-    alignItems: "center",
-  },
+  // 牌は絵（TileFace）。ここでは枠と状態だけを付ける
+  riverTile: { borderRadius: 3, overflow: "hidden" },
   riverTileTsumogiri: { opacity: 0.55 },
-  riverTileRiichi: { backgroundColor: "#E85D5D" },
+  riverTileRiichi: { borderWidth: 2, borderColor: "#E85D5D" },
   riverTileText: { fontSize: 10, fontWeight: "600", color: "#1A1A1A" },
 
   myScore: { alignItems: "center", paddingTop: 6 },
 
   handArea: { backgroundColor: "#0B2B20", paddingVertical: 10, paddingHorizontal: 8 },
-  tile: {
-    width: 38,
-    height: 54,
-    backgroundColor: "#F5F0E1",
-    borderRadius: 5,
-    marginHorizontal: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  tile: { borderRadius: 5, marginHorizontal: 1, overflow: "hidden" },
   tileSelected: { borderWidth: 3, borderColor: "#E8B84B", transform: [{ translateY: -6 }] },
-  tileDraw: { backgroundColor: "#FFFDF5" },
+  tileDraw: {},
   tileText: { fontSize: 15, fontWeight: "700", color: "#1A1A1A" },
   akaText: { color: "#C62828" },
   drawGap: { width: 14 },
   meld: { flexDirection: "row", marginLeft: 14, alignSelf: "flex-end" },
-  meldTile: {
-    width: 30,
-    height: 42,
-    backgroundColor: "#D8D2C0",
-    borderRadius: 4,
-    marginHorizontal: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  meldTile: { borderRadius: 4, marginHorizontal: 1, overflow: "hidden" },
   meldTileText: { fontSize: 12, fontWeight: "700", color: "#1A1A1A" },
 
   coach: { height: 190, backgroundColor: "#12332A", paddingHorizontal: 16, paddingTop: 12 },

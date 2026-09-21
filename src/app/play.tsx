@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { TileFace } from "../components/TileFace";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   askInGame,
@@ -442,7 +443,7 @@ export default function PlayScreen() {
           <Text style={styles.doraLabel}>ドラ</Text>
           {r.dora.map((d, i) => (
             <View key={i} style={[styles.riverTile, styles.doraTile]}>
-              <Text style={[styles.riverTileText, isAka(d) && styles.akaText]}>{tileText(d)}</Text>
+              <TileFace tile={d} size="small" />
             </View>
           ))}
           <Text style={styles.dim}>（表示 {r.baopai.map(tileText).join(" ")}）  残り {r.paishu ?? "-"}</Text>
@@ -769,7 +770,7 @@ function TileButton({
       onPress={onPress}
       disabled={!enabled}
     >
-      <Text style={[styles.tileText, isAka(tile) && styles.akaText]}>{tileText(tile)}</Text>
+      <TileFace tile={tile} size="hand" />
     </TouchableOpacity>
   );
 }
@@ -785,7 +786,7 @@ function RiverTileView({ t, dora }: { t: RiverTile; dora: string[] }) {
         t.called && styles.riverTileCalled,
       ]}
     >
-      <Text style={[styles.riverTileText, isAka(t.p) && styles.akaText]}>{tileText(t.p)}</Text>
+      <TileFace tile={t.p} size="river" />
     </View>
   );
 }
@@ -795,9 +796,7 @@ function MeldView({ meld, small, dora = [] }: { meld: Meld; small?: boolean; dor
     <View style={[styles.meld, small && { marginLeft: 6 }]}>
       {splitMeld(meld.tiles).map((t, i) => (
         <View key={i} style={[small ? styles.meldTileSmall : styles.meldTile, isDora(t, dora) && styles.doraTile]}>
-          <Text style={[small ? styles.riverTileText : styles.meldTileText, isAka(t) && styles.akaText]}>
-            {tileText(t)}
-          </Text>
+          <TileFace tile={t} size={small ? "small" : "meld"} />
         </View>
       ))}
     </View>
@@ -925,16 +924,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   river: { flexDirection: "row", flexWrap: "wrap", gap: 2, marginTop: 4 },
-  riverTile: {
-    backgroundColor: "#D8D2C0",
-    borderRadius: 3,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-    minWidth: 22,
-    alignItems: "center",
-  },
+  // 牌は絵（TileFace）。ここでは枠と状態だけを付ける
+  riverTile: { borderRadius: 3, overflow: "hidden" },
   riverTileTsumogiri: { opacity: 0.55 },
-  riverTileRiichi: { backgroundColor: "#E85D5D" },
+  riverTileRiichi: { borderWidth: 2, borderColor: "#E85D5D" },
   riverTileCalled: { borderWidth: 1, borderColor: "#E8B84B", opacity: 0.4 },
   riverTileText: { fontSize: 10, fontWeight: "600", color: "#1A1A1A" },
   recent: { color: "#DCE9E2", fontSize: 12, marginTop: 10 },
@@ -952,36 +945,14 @@ const styles = StyleSheet.create({
   badgeText: { color: "#1A1A1A", fontWeight: "700", fontSize: 12 },
 
   handArea: { backgroundColor: "#0B2B20", paddingVertical: 10, paddingHorizontal: 8 },
-  tile: {
-    width: 38,
-    height: 54,
-    backgroundColor: "#F5F0E1",
-    borderRadius: 5,
-    marginHorizontal: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  tile: { borderRadius: 5, marginHorizontal: 1, overflow: "hidden" },
   tileSelected: { borderWidth: 3, borderColor: "#E8B84B", transform: [{ translateY: -6 }] },
   tileDisabled: { opacity: 0.45 },
   tileText: { fontSize: 15, fontWeight: "700", color: "#1A1A1A" },
   akaText: { color: "#C62828" },
   meld: { flexDirection: "row", marginLeft: 12, alignSelf: "flex-end" },
-  meldTile: {
-    width: 30,
-    height: 42,
-    backgroundColor: "#D8D2C0",
-    borderRadius: 4,
-    marginHorizontal: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  meldTileSmall: {
-    backgroundColor: "#D8D2C0",
-    borderRadius: 3,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-    marginHorizontal: 1,
-  },
+  meldTile: { borderRadius: 4, marginHorizontal: 1, overflow: "hidden" },
+  meldTileSmall: { borderRadius: 3, marginHorizontal: 1, overflow: "hidden" },
   meldTileText: { fontSize: 12, fontWeight: "700", color: "#1A1A1A" },
 
   actions: { backgroundColor: "#12332A", paddingHorizontal: 12, paddingVertical: 10, minHeight: 64, flexDirection: "row", alignItems: "center", gap: 12 },
