@@ -165,7 +165,16 @@ export default function PlayScreen() {
   const [selected, setSelected] = useState<{ tile: string; isDraw: boolean } | null>(null);
   const [riichiMode, setRiichiMode] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
-  const [rating, setRating] = useState<{ discard: string; rating: string | null; recommended: string | null } | null>(null);
+  // 直前の打牌の ○×（手の進み）と、その説明（#26。2026-09-21）
+  //   widest       … × のとき、有効牌がいちばん多い打牌（それを切れば○だった）
+  //   aiSameReason … AI推奨と同じなのに × のとき、AI がなぜ有効牌の少ないほうを選んだか
+  const [rating, setRating] = useState<{
+    discard: string;
+    rating: string | null;
+    recommended: string | null;
+    widest?: { discard: string; acceptCount: number; mine: number | null; shanten: number; mineShanten: number | null } | null;
+    aiSameReason?: string | null;
+  } | null>(null);
 
   // 再生（他家の打牌を1枚ずつ見せる）
   const [display, setDisplay] = useState<GameView | null>(null);   // いま画面に出している卓
@@ -282,7 +291,7 @@ export default function PlayScreen() {
       setRating(null);
     }
     const r = [...res.events.slice(qipaiAt + 1)].reverse().find((e) => e.type === "rating");
-    if (r) setRating({ discard: r.discard, rating: r.rating, recommended: r.recommended });
+    if (r) setRating({ discard: r.discard, rating: r.rating, recommended: r.recommended, widest: r.widest, aiSameReason: r.aiSameReason });
   };
 
   const begin = async () => {
@@ -470,15 +479,36 @@ export default function PlayScreen() {
       </ScrollView>
 
       {/* 直前の打牌の ○× と AI推奨 */}
+      {/* ○× は「手の進み」だけを見る（9/19 の決定のまま）。× のときは理由を添える（#26。2026-09-21）
+          以前は「1m切り × AIなら1m切り」と矛盾して見えた */}
       {rating && (
         <View style={styles.ratingRow}>
-          <Text style={styles.dim}>{tileText(rating.discard)}切り</Text>
-          {showRating !== false && rating.rating && (
-            <View style={[styles.badge, rating.rating === "○" ? styles.badgeGood : styles.badgeBad]}>
-              <Text style={styles.badgeText}>{rating.rating}</Text>
-            </View>
+          <View style={styles.ratingLine}>
+            <Text style={styles.dim}>{tileText(rating.discard)}切り</Text>
+            {showRating !== false && rating.rating && (
+              <>
+                <Text style={styles.dim}>手の進み</Text>
+                <View style={[styles.badge, rating.rating === "○" ? styles.badgeGood : styles.badgeBad]}>
+                  <Text style={styles.badgeText}>{rating.rating}</Text>
+                </View>
+                {rating.rating === "×" && rating.widest && (
+                  <Text style={styles.dim}>
+                    {rating.widest.mineShanten != null && rating.widest.mineShanten !== rating.widest.shanten
+                      ? `${tileText(rating.widest.discard)}切りなら手を戻さずに済む`
+                      : `${tileText(rating.widest.discard)}切りなら有効牌${rating.widest.acceptCount}枚` +
+                        (rating.widest.mine != null ? `（${tileText(rating.discard)}切りは${rating.widest.mine}枚）` : "")}
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+          {rating.recommended && (
+            <Text style={styles.dim}>
+              {rating.recommended === rating.discard
+                ? `AIと同じ${showRating !== false && rating.rating === "×" && rating.aiSameReason ? `：${rating.aiSameReason}` : ""}`
+                : `AIなら ${tileText(rating.recommended)}切り`}
+            </Text>
           )}
-          {rating.recommended && <Text style={styles.dim}>AIなら {tileText(rating.recommended)}切り</Text>}
         </View>
       )}
 
@@ -910,13 +940,12 @@ const styles = StyleSheet.create({
   recent: { color: "#DCE9E2", fontSize: 12, marginTop: 10 },
 
   ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    gap: 2,
     backgroundColor: "#12332A",
   },
+  ratingLine: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   badge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badgeGood: { backgroundColor: "#4CAF7D" },
   badgeBad: { backgroundColor: "#C75D5D" },
