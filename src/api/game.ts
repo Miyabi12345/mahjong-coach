@@ -140,3 +140,18 @@ export function askInGame(
 export function sendFeedback(gameId: string, questionId: string, good: boolean, comment?: string) {
   return call<{ ok: boolean }>(`/game/${gameId}/feedback`, { questionId, good, comment });
 }
+
+/**
+ * 音声入力：録音を文字にする（Phase 2。2026-09-22）。質問は送らない（質問欄に入れて、利用者が直してから送る）
+ * ⚠️ 録音はサーバーでも保存しない
+ */
+export async function transcribeInGame(gameId: string, blob: Blob, mime: string, seconds: number) {
+  const res = await fetch(`${API_BASE}/game/${gameId}/transcribe?seconds=${seconds.toFixed(1)}`, {
+    method: "POST",
+    headers: { "Content-Type": mime },
+    body: blob,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error ?? `サーバーのエラー（${res.status}）`);
+  return json as { text: string; seconds: number | null; yen: number | null };
+}

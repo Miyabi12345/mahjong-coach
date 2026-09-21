@@ -22,10 +22,12 @@ import {
   View,
 } from "react-native";
 import { Board } from "../components/Board";
+import { useRecorder } from "../voice/useRecorder";
 import { TileFace } from "../components/TileFace";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   askInGame,
+  transcribeInGame,
   sendAction,
   sendFeedback,
   startGame,
@@ -203,6 +205,26 @@ export default function PlayScreen() {
     answer: string;
   } | null>(null);
   const [coachError, setCoachError] = useState<string | null>(null);
+
+  // 音声入力（Phase 2。2026-09-22）。文字にしたら質問欄に足すだけ。送るのは「聞く」を押したとき
+  const [transcribing, setTranscribing] = useState(false);
+  const recorder = useRecorder(
+    async ({ blob, mime, seconds }) => {
+      if (!game) return;
+      setTranscribing(true);
+      setCoachError(null);
+      try {
+        const r = await transcribeInGame(game.gameId, blob, mime, seconds);
+        if (r.text) setQuestion((q) => (q.trim() ? `${q.trim()} ${r.text}` : r.text));
+        else setCoachError("聞き取れませんでした。もう一度話してください");
+      } catch (e: any) {
+        setCoachError(`文字にできませんでした（${e?.message ?? e}）`);
+      } finally {
+        setTranscribing(false);
+      }
+    },
+    (msg) => setCoachError(msg),
+  );
   // 評価: null=まだ / "bad"=👎 を押して一言を書いているところ / "sent"=送った
   const [feedback, setFeedback] = useState<null | "bad" | "sent">(null);
   const [comment, setComment] = useState("");
@@ -711,6 +733,16 @@ export default function PlayScreen() {
             />
           </View>
           <View style={styles.askRow}>
+            {/* 音声入力：押して話し、もう一度押すと止まる。文字は質問欄に入るので、直してから「聞く」 */}
+            <TouchableOpacity
+              style={[styles.micButton, recorder.recording && styles.micButtonOn, (!target || asking || transcribing) && !recorder.recording && styles.askButtonDisabled]}
+              onPress={recorder.recording ? recorder.stop : recorder.start}
+              disabled={(!target || asking || transcribing) && !recorder.recording}
+            >
+              <Text style={styles.micText}>
+                {recorder.recording ? `■ ${Math.floor(recorder.elapsed)}秒` : transcribing ? "…" : "🎤"}
+              </Text>
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
               value={question}
@@ -1011,5 +1043,8 @@ const styles = StyleSheet.create({
   },
   askButton: { backgroundColor: "#E8B84B", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10 },
   askButtonDisabled: { backgroundColor: "#5A6F62" },
+  micButton: { backgroundColor: "#1A5C46", borderRadius: 20, minWidth: 44, height: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  micButtonOn: { backgroundColor: "#C75D5D" },
+  micText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   askText: { color: "#1A1A1A", fontSize: 14, fontWeight: "700" },
 });
