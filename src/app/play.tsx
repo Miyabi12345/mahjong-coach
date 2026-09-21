@@ -209,6 +209,25 @@ export default function PlayScreen() {
   } | null>(null);
   const [coachError, setCoachError] = useState<string | null>(null);
 
+  // 手牌を大きくして横スクロールにするか（ふだんは縮めて全部見せる）。ブラウザに覚えておく
+  const [handZoom, setHandZoom] = useState<boolean>(() => {
+    try {
+      return typeof localStorage !== "undefined" && localStorage.getItem("mahjongCoach.handZoom") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleHandZoom = () => {
+    setHandZoom((z) => {
+      try {
+        if (typeof localStorage !== "undefined") localStorage.setItem("mahjongCoach.handZoom", z ? "0" : "1");
+      } catch {
+        /* 覚えられなくても切り替えはできる */
+      }
+      return !z;
+    });
+  };
+
   // 音声入力（Phase 2。2026-09-22）。文字にしたら質問欄に足すだけ。送るのは「聞く」を押したとき
   const [transcribing, setTranscribing] = useState(false);
   const recorder = useRecorder(
@@ -491,6 +510,16 @@ export default function PlayScreen() {
   const r = { ...view.round, dora: view.round.dora ?? [] };
   // 盤面の一辺：画面の幅に合わせる（大きい画面では 520 まで）
   const boardSize = Math.min(winWidth - 16, 520);
+
+  // 手牌の牌の幅。拡大していなければ、手牌・ツモ牌・自分の副露が横幅に収まるように縮める（大きくても 38）
+  const handCount = view.me.hand.length + (view.me.draw ? 1 : 0);
+  const meldTiles = me.fulou.reduce((a, m) => a + splitMeld(m.tiles).length, 0);
+  const handTileW = handZoom
+    ? 38
+    : Math.max(16, Math.min(38, Math.floor(
+        (winWidth - 16 - (view.me.draw ? 6 : 0) - me.fulou.length * 6 - 2 * (handCount + meldTiles) - 8) /
+        (handCount + 0.8 * meldTiles),
+      )));
   const roundLabel = `${WIND[r.zhuangfeng]}${r.jushu + 1}局 ${r.changbang}本場${r.lizhibang ? ` 供託${r.lizhibang}` : ""}`;
 
   return (
@@ -632,12 +661,16 @@ export default function PlayScreen() {
         </View>
       )}
 
-      {/* 手牌 */}
+      {/* 手牌。ふだんは横幅に収まるように縮める。🔍で大きく（横スクロール）。どちらかはブラウザが覚える（2026-09-22 みやびさんの要望） */}
       <View style={styles.handArea}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <TouchableOpacity style={styles.zoomButton} onPress={toggleHandZoom} accessibilityLabel={handZoom ? "手牌を縮めて全部見る" : "手牌を大きくする"}>
+          <Text style={styles.zoomText}>{handZoom ? "縮小" : "🔍拡大"}</Text>
+        </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEnabled={handZoom}>
           {view.me.hand.map((tile, i) => (
             <TileButton
               key={i}
+              width={handTileW}
               tile={tile}
               selected={selected?.tile === tile && !selected.isDraw}
               dora={isDora(tile, r.dora)}
@@ -647,8 +680,9 @@ export default function PlayScreen() {
           ))}
           {view.me.draw && (
             <>
-              <View style={{ width: 12 }} />
+              <View style={{ width: handZoom ? 12 : 6 }} />
               <TileButton
+                width={handTileW}
                 tile={view.me.draw}
                 selected={selected?.tile === view.me.draw && !!selected?.isDraw}
                 dora={isDora(view.me.draw, r.dora)}
@@ -658,7 +692,7 @@ export default function PlayScreen() {
             </>
           )}
           {me.fulou.map((m, i) => (
-            <MeldView key={i} meld={m} dora={r.dora} />
+            <MeldView key={i} meld={m} dora={r.dora} width={handZoom ? undefined : Math.round(handTileW * 0.8)} />
           ))}
         </ScrollView>
       </View>
@@ -843,7 +877,9 @@ function TileButton({
   enabled,
   dora,
   onPress,
+  width,
 }: {
+  width?: number;
   tile: string;
   selected: boolean;
   enabled: boolean;
@@ -856,7 +892,7 @@ function TileButton({
       onPress={onPress}
       disabled={!enabled}
     >
-      <TileFace tile={tile} size="hand" />
+      <TileFace tile={tile} size="hand" width={width} />
     </TouchableOpacity>
   );
 }
@@ -877,12 +913,12 @@ function RiverTileView({ t, dora }: { t: RiverTile; dora: string[] }) {
   );
 }
 
-function MeldView({ meld, small, dora = [] }: { meld: Meld; small?: boolean; dora?: string[] }) {
+function MeldView({ meld, small, dora = [], width }: { meld: Meld; small?: boolean; dora?: string[]; width?: number }) {
   return (
-    <View style={[styles.meld, small && { marginLeft: 6 }]}>
+    <View style={[styles.meld, (small || width != null) ? { marginLeft: 6 } : null]}>
       {splitMeld(meld.tiles).map((t, i) => (
         <View key={i} style={[small ? styles.meldTileSmall : styles.meldTile, isDora(t, dora) && styles.doraTile]}>
-          <TileFace tile={t} size={small ? "small" : "meld"} />
+          <TileFace tile={t} size={small ? "small" : "meld"} width={width} />
         </View>
       ))}
     </View>
@@ -1035,7 +1071,9 @@ const styles = StyleSheet.create({
   badgeBad: { backgroundColor: "#C75D5D" },
   badgeText: { color: "#1A1A1A", fontWeight: "700", fontSize: 12 },
 
-  handArea: { backgroundColor: "#0B2B20", paddingVertical: 10, paddingHorizontal: 8 },
+  handArea: { backgroundColor: "#0B2B20", paddingTop: 22, paddingBottom: 10, paddingHorizontal: 8 },
+  zoomButton: { position: "absolute", right: 8, top: 2, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: "#1A5C46", zIndex: 1 },
+  zoomText: { color: "#DCE9E2", fontSize: 11 },
   tile: { borderRadius: 5, marginHorizontal: 1, overflow: "hidden" },
   tileSelected: { borderWidth: 3, borderColor: "#E8B84B", transform: [{ translateY: -6 }] },
   tileDisabled: { opacity: 0.45 },
