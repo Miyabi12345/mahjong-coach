@@ -118,6 +118,8 @@ export type AskAnswer = {
   rating: "○" | "×" | null;
   /** 鳴きの相談のときだけ付く（出た牌とAIの判断） */
   fulou?: { tile: string | null; ai: string };
+  /** 和了の相談のときだけ付く（ツモ／ロン・和了牌・AIの判断） */
+  hule?: { kind: "ツモ" | "ロン"; tile: string | null; ai: string };
 };
 
 /**

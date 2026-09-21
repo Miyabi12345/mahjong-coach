@@ -366,6 +366,11 @@ export default function PlayScreen() {
   // 「いまの局面」は、自分のツモ番（何を切るか）と、鳴ける場面（鳴くかどうか）の両方
   // （どちらの相談になるかはサーバーが決める。2026-09-21 に鳴きの場面を足した）
   const askCall = game.choices?.type === "call" ? game.choices : null;
+  // 和了れる場面は、和了るかどうかの相談になる（サーバーが決める。Phase 2。2026-09-21）
+  const askHuleKind =
+    (game.choices?.type === "zimo" || game.choices?.type === "call") && game.choices.hule
+      ? game.choices.type === "zimo" ? "ツモ" : "ロン"
+      : null;
   const canAskNow = (game.choices?.type === "zimo" || !!askCall) && !playing;
   const canAskLast = !!rating;
   const target: "now" | "last" | null =
@@ -377,12 +382,14 @@ export default function PlayScreen() {
     if (!target || asking) return;
     const q =
       question.trim() ||
-      (target === "last" ? "この打牌はどうだった？" : askCall ? "鳴くべき？" : "何を切ればいい？");
+      (target === "last" ? "この打牌はどうだった？" : askHuleKind ? `${askHuleKind}するべき？` : askCall ? "鳴くべき？" : "何を切ればいい？");
     // 切る前に牌を選んでいたら「その牌を切ったら」で聞く（鳴きの相談では使わない）
-    const discard = target === "now" && !askCall && selected ? selected.tile : undefined;
+    const discard = target === "now" && !askCall && !askHuleKind && selected ? selected.tile : undefined;
     const label =
       target === "last"
         ? `直前の打牌（${tileText(rating!.discard)}切り）`
+        : askHuleKind
+          ? `和了の相談（${askHuleKind}${askCall?.tile ? ` ${tileText(askCall.tile)}` : ""}）`
         : askCall
           ? `鳴きの相談（${askCall.tile ? tileText(askCall.tile) : ""}）`
           : discard ? `いまの局面（${tileText(discard)}を切るなら）` : "いまの局面";
@@ -704,7 +711,8 @@ export default function PlayScreen() {
           <View style={styles.askTargets}>
             <TargetChip
               label={
-                askCall ? `この${askCall.tile ? tileText(askCall.tile) : "鳴き"}を鳴くか`
+                askHuleKind ? `${askHuleKind}するか`
+                  : askCall ? `この${askCall.tile ? tileText(askCall.tile) : "鳴き"}を鳴くか`
                   : selected && canAskNow ? `${tileText(selected.tile)}を切るなら`
                   : "いまの局面"
               }
@@ -726,6 +734,7 @@ export default function PlayScreen() {
               onChangeText={setQuestion}
               placeholder={
                 !target ? "自分の番か、切ったあとに質問できます"
+                  : askHuleKind && target === "now" ? `コーチに質問（空なら「${askHuleKind}するべき？」）`
                   : askCall && target === "now" ? "コーチに質問（空なら「鳴くべき？」）"
                   : "コーチに質問（空なら「何を切ればいい？」）"
               }
