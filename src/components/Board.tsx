@@ -8,11 +8,12 @@
  *     自分の鳴いた牌は、今までどおり手牌の横
  *   ・牌の大きさは、盤面の幅から決める（iPhone の縦画面でも収まるように）
  *
- * ⚠️ 鳴いた牌を横に倒して誰から鳴いたかを見せる（#34）は、まだ。副露は立てたまま並べる
+ *   ・鳴いた牌は横に倒す（誰から鳴いたか。#34。MeldTiles）
  */
 import { StyleSheet, Text, View } from "react-native";
 
 import type { GameView, Meld, RiverTile } from "../api/game";
+import { MeldTiles } from "./MeldTiles";
 import { TileFace } from "./TileFace";
 
 const WIND = ["東", "南", "西", "北"];
@@ -168,16 +169,9 @@ function RiverTileSmall({ t, w, h, dora }: { t: RiverTile; w: number; h: number;
   );
 }
 
+// 鳴いた牌は横に倒す（誰から鳴いたか。#34。MeldTiles）
 function MeldSmall({ meld, w, dora }: { meld: Meld; w: number; dora: string[] }) {
-  return (
-    <View style={styles.meld}>
-      {splitMeld(meld.tiles).map((t, i) => (
-        <View key={i} style={[styles.tileWrap, dora.includes(plain(t)) && styles.dora]}>
-          <TileFace tile={t} size="small" width={w} />
-        </View>
-      ))}
-    </View>
-  );
+  return <MeldTiles meld={meld} width={w} dora={dora} doraStyle={styles.dora} />;
 }
 
 const styles = StyleSheet.create({

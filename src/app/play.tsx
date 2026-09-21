@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { Board } from "../components/Board";
+import { MeldTiles } from "../components/MeldTiles";
 import { getConsent } from "../consent/consent";
 import { useRecorder } from "../voice/useRecorder";
 import { TileFace } from "../components/TileFace";
@@ -913,14 +914,11 @@ function RiverTileView({ t, dora }: { t: RiverTile; dora: string[] }) {
   );
 }
 
+// 自分の副露。鳴いた牌は横に倒す（誰から鳴いたか。#34。MeldTiles）
 function MeldView({ meld, small, dora = [], width }: { meld: Meld; small?: boolean; dora?: string[]; width?: number }) {
   return (
     <View style={[styles.meld, (small || width != null) ? { marginLeft: 6 } : null]}>
-      {splitMeld(meld.tiles).map((t, i) => (
-        <View key={i} style={[small ? styles.meldTileSmall : styles.meldTile, isDora(t, dora) && styles.doraTile]}>
-          <TileFace tile={t} size={small ? "small" : "meld"} width={width} />
-        </View>
-      ))}
+      <MeldTiles meld={meld} width={width ?? (small ? 20 : 30)} dora={dora} doraStyle={styles.doraTile} />
     </View>
   );
 }
