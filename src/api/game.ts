@@ -9,7 +9,7 @@
  */
 import type { PlayerLevel, RuleConfig } from "../types/config";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "./base";
 
 export type RiverTile = {
   p: string;
