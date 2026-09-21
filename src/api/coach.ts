@@ -1,4 +1,5 @@
 import type { PlayerLevel, RuleConfig } from "../types/config";
+import { getConsent } from "../consent/consent";
 
 import { API_BASE } from "./base";
 
@@ -112,7 +113,8 @@ export async function askCoach(params: AskParams): Promise<AskResult> {
   const res = await fetch(`${API_BASE}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    // 同意した版を添える（ないとサーバーは受け付けない。src/consent/consent.ts）
+    body: JSON.stringify({ ...params, consentVersion: getConsent()?.version }),
   });
 
   if (!res.ok) {

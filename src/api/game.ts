@@ -8,6 +8,7 @@
  * raw は電脳麻将の表記で、操作を送るときはこれをそのまま返す。
  */
 import type { PlayerLevel, RuleConfig } from "../types/config";
+import { getConsent } from "../consent/consent";
 
 import { API_BASE } from "./base";
 
@@ -134,7 +135,14 @@ export function askInGame(
   target: "now" | "last",
   discard?: string
 ) {
-  return call<AskAnswer>(`/game/${gameId}/ask`, { question, target, discard });
+  // 同意した版を添える（ないとサーバーは受け付けない。src/consent/consent.ts）
+  return call<AskAnswer>(`/game/${gameId}/ask`, { question, target, discard, consentVersion: getConsent()?.version });
+}
+
+/** 不適切な内容の報告（Phase 2。2026-09-22）。理由はこの中から選ぶ */
+export const REPORT_REASONS = ["不快・攻撃的な内容", "危険・違法な内容", "明らかに誤った内容", "その他"] as const;
+export function sendReport(gameId: string, questionId: string, reason: (typeof REPORT_REASONS)[number], comment?: string) {
+  return call<{ ok: boolean }>(`/game/${gameId}/report`, { questionId, reason, comment });
 }
 
 export function sendFeedback(gameId: string, questionId: string, good: boolean, comment?: string) {
@@ -146,7 +154,8 @@ export function sendFeedback(gameId: string, questionId: string, good: boolean, 
  * ⚠️ 録音はサーバーでも保存しない
  */
 export async function transcribeInGame(gameId: string, blob: Blob, mime: string, seconds: number) {
-  const res = await fetch(`${API_BASE}/game/${gameId}/transcribe?seconds=${seconds.toFixed(1)}`, {
+  const consent = encodeURIComponent(getConsent()?.version ?? "");
+  const res = await fetch(`${API_BASE}/game/${gameId}/transcribe?seconds=${seconds.toFixed(1)}&consent=${consent}`, {
     method: "POST",
     headers: { "Content-Type": mime },
     body: blob,

@@ -22,11 +22,14 @@ import {
   View,
 } from "react-native";
 import { Board } from "../components/Board";
+import { getConsent } from "../consent/consent";
 import { useRecorder } from "../voice/useRecorder";
 import { TileFace } from "../components/TileFace";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   askInGame,
+  REPORT_REASONS,
+  sendReport,
   transcribeInGame,
   sendAction,
   sendFeedback,
@@ -227,6 +230,10 @@ export default function PlayScreen() {
   );
   // 評価: null=まだ / "bad"=👎 を押して一言を書いているところ / "sent"=送った
   const [feedback, setFeedback] = useState<null | "bad" | "sent">(null);
+  // 不適切な内容の報告（Phase 2。2026-09-22）。null=閉じている / "open"=理由を選ぶ / "sent"=送った
+  const [report, setReport] = useState<null | "open" | "sent">(null);
+  const [reportReason, setReportReason] = useState<(typeof REPORT_REASONS)[number] | null>(null);
+  const [reportComment, setReportComment] = useState("");
   const [comment, setComment] = useState("");
 
   const show = (v: GameView) => {
@@ -403,8 +410,26 @@ export default function PlayScreen() {
       ? canAskNow ? "now" : canAskLast ? "last" : null
       : canAskLast ? "last" : canAskNow ? "now" : null;
 
+  /** コーチ（OpenAI）を使う前に、データの取り扱いへの同意を確かめる。まだなら同意画面を開く */
+  const needConsent = () => {
+    if (getConsent()) return false;
+    router.push("/consent");
+    return true;
+  };
+
+  const handleReport = async () => {
+    if (!game || !coach || !reportReason) return;
+    try {
+      await sendReport(game.gameId, coach.questionId, reportReason, reportComment.trim() || undefined);
+      setReport("sent");
+    } catch (e: any) {
+      setCoachError(`報告を送れませんでした（${e?.message ?? e}）`);
+    }
+  };
+
   const handleAsk = async () => {
     if (!target || asking) return;
+    if (needConsent()) return;
     const q =
       question.trim() ||
       (target === "last" ? "この打牌はどうだった？" : askHuleKind ? `${askHuleKind}するべき？` : askCall ? "鳴くべき？" : "何を切ればいい？");
@@ -425,6 +450,9 @@ export default function PlayScreen() {
       setCoach({ questionId: r.questionId, question: q, label, answer: r.answer });
       setFeedback(null);
       setComment("");
+      setReport(null);
+      setReportReason(null);
+      setReportComment("");
       setQuestion("");
     } catch (e: any) {
       setCoachError(`質問できませんでした。${e.message}`);
@@ -564,6 +592,40 @@ export default function PlayScreen() {
                   <Btn label="👍" onPress={() => handleFeedback(true)} />
                   <Btn label="👎" onPress={() => setFeedback("bad")} />
                 </View>
+              )}
+              {/* 不適切な内容の報告（👍👎とは別。Google の AI生成コンテンツ ポリシー・Apple 1.2 に備える） */}
+              {report === "sent" ? (
+                <Text style={styles.dim}>報告を受け付けました。内容を確認します</Text>
+              ) : report === "open" ? (
+                <View style={styles.reportBox}>
+                  <Text style={styles.dim}>報告の理由を選んでください</Text>
+                  <View style={styles.feedbackRow}>
+                    {REPORT_REASONS.map((r) => (
+                      <TouchableOpacity
+                        key={r}
+                        style={[styles.reasonChip, reportReason === r && styles.reasonChipOn]}
+                        onPress={() => setReportReason(r)}
+                      >
+                        <Text style={[styles.reasonText, reportReason === r && styles.reasonTextOn]}>{r}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.feedbackRow}>
+                    <TextInput
+                      style={[styles.input, styles.commentInput]}
+                      value={reportComment}
+                      onChangeText={setReportComment}
+                      placeholder="詳しく（書かなくても送れます）"
+                      placeholderTextColor="#5A7A6B"
+                    />
+                    <Btn label="報告する" strong onPress={handleReport} />
+                    <Btn label="やめる" onPress={() => setReport(null)} />
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => setReport("open")}>
+                  <Text style={styles.reportLink}>⚠ 不適切な内容を報告</Text>
+                </TouchableOpacity>
               )}
             </>
           )}
@@ -736,7 +798,7 @@ export default function PlayScreen() {
             {/* 音声入力：押して話し、もう一度押すと止まる。文字は質問欄に入るので、直してから「聞く」 */}
             <TouchableOpacity
               style={[styles.micButton, recorder.recording && styles.micButtonOn, (!target || asking || transcribing) && !recorder.recording && styles.askButtonDisabled]}
-              onPress={recorder.recording ? recorder.stop : recorder.start}
+              onPress={recorder.recording ? recorder.stop : () => { if (!needConsent()) recorder.start(); }}
               disabled={(!target || asking || transcribing) && !recorder.recording}
             >
               <Text style={styles.micText}>
@@ -1043,6 +1105,12 @@ const styles = StyleSheet.create({
   },
   askButton: { backgroundColor: "#E8B84B", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10 },
   askButtonDisabled: { backgroundColor: "#5A6F62" },
+  reportBox: { gap: 6, marginTop: 6 },
+  reportLink: { color: "#A8C5B5", fontSize: 12, textDecorationLine: "underline", marginTop: 6 },
+  reasonChip: { borderWidth: 1, borderColor: "#5A7A6B", borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
+  reasonChipOn: { backgroundColor: "#C75D5D", borderColor: "#C75D5D" },
+  reasonText: { color: "#DCE9E2", fontSize: 12 },
+  reasonTextOn: { color: "#FFFFFF", fontWeight: "700" },
   micButton: { backgroundColor: "#1A5C46", borderRadius: 20, minWidth: 44, height: 40, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   micButtonOn: { backgroundColor: "#C75D5D" },
   micText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },

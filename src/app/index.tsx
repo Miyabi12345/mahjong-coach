@@ -40,12 +40,17 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* データの取り扱い（同意の確認・取り消し。2026-09-22） */}
+      <TouchableOpacity onPress={() => router.push("/consent")}>
+        <Text style={styles.footerLink}>データの取り扱い</Text>
+      </TouchableOpacity>
       <Text style={styles.footer}>MVP開発中</Text>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  footerLink: { color: "#A8C5B5", fontSize: 13, textAlign: "center", textDecorationLine: "underline", marginBottom: 8 },
   container: {
     flex: 1,
     backgroundColor: "#0F3D2E",

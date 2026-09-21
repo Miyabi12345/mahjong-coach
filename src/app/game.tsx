@@ -12,6 +12,7 @@ import {
 import { TileFace } from "../components/TileFace";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { askCoach, type DangerInfo, type RiverTile } from "../api/coach";
+import { getConsent } from "../consent/consent";
 import { getMatchConfig } from "../store/matchStore";
 import { getPresets, OBJECTIVES } from "../types/config";
 
@@ -379,6 +380,12 @@ export default function GameScreen() {
   const handleAsk = async () => {
     if (!selected) {
       setAnswer("先に切る牌を選んでください。");
+      return;
+    }
+
+    // コーチ（OpenAI）を使う前に、データの取り扱いへの同意を確かめる（2026-09-22）
+    if (!getConsent()) {
+      router.push("/consent");
       return;
     }
 
