@@ -11,8 +11,11 @@
  * ⚠️ この文面は下書き。プライバシーポリシーと一緒に、みやびさん（と弁護士）が確認する。
  *    文面を変えたら CONSENT_VERSION を変える（同意し直してもらうため。サーバーは版の名前を記録する）
  *
- * ★保存：ブラウザ版は localStorage。アプリ版（EAS ビルド）は AsyncStorage に置き換える（Phase 3。いまは覚えていられない）
+ * ★保存：ブラウザ版は localStorage（すぐ読める）。アプリ版は AsyncStorage（読み書きが非同期）。
+ *   アプリ版でも画面の中では「すぐ読める」形にしたいので、起動時に1回読んで控え（memory）に入れる（loadConsent）。
+ *   読み込みは src/app/_layout.tsx（アプリの入口）で待つ。2026-09-23
  */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
 export const CONSENT_VERSION = "2026-09-22-draft1";
@@ -21,6 +24,23 @@ export type Consent = { version: string; at: string };
 
 const KEY = "mahjongCoach.consent";
 let memory: Consent | null = null;   // localStorage が使えないときの控え（アプリを閉じると消える）
+
+/**
+ * 保存されている同意を読んで、控えに入れる（アプリの起動時に1回だけ呼ぶ）
+ * ブラウザ版はすぐ読めるので、実際には何もしなくても動く
+ */
+export async function loadConsent(): Promise<Consent | null> {
+  try {
+    const raw = Platform.OS === "web"
+      ? (typeof localStorage !== "undefined" ? localStorage.getItem(KEY) : null)
+      : await AsyncStorage.getItem(KEY);
+    const c = raw ? (JSON.parse(raw) as Consent) : null;
+    memory = c?.version === CONSENT_VERSION ? c : null;
+  } catch {
+    memory = null;   // 読めなければ「まだ同意していない」扱い
+  }
+  return memory;
+}
 
 export function getConsent(): Consent | null {
   try {
@@ -39,7 +59,11 @@ export function saveConsent() {
   const c: Consent = { version: CONSENT_VERSION, at: new Date().toISOString() };
   memory = c;
   try {
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.setItem(KEY, JSON.stringify(c));
+    if (Platform.OS === "web") {
+      if (typeof localStorage !== "undefined") localStorage.setItem(KEY, JSON.stringify(c));
+    } else {
+      void AsyncStorage.setItem(KEY, JSON.stringify(c));
+    }
   } catch {
     /* 保存できなくても、この起動中は控えで動く */
   }
@@ -49,7 +73,11 @@ export function saveConsent() {
 export function clearConsent() {
   memory = null;
   try {
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.removeItem(KEY);
+    if (Platform.OS === "web") {
+      if (typeof localStorage !== "undefined") localStorage.removeItem(KEY);
+    } else {
+      void AsyncStorage.removeItem(KEY);
+    }
   } catch {
     /* 何もしない */
   }

@@ -233,12 +233,12 @@ export default function PlayScreen() {
   // 音声入力（Phase 2。2026-09-22）。文字にしたら質問欄に足すだけ。送るのは「聞く」を押したとき
   const [transcribing, setTranscribing] = useState(false);
   const recorder = useRecorder(
-    async ({ blob, mime, seconds }) => {
+    async (rec) => {
       if (!game) return;
       setTranscribing(true);
       setCoachError(null);
       try {
-        const r = await transcribeInGame(game.gameId, blob, mime, seconds);
+        const r = await transcribeInGame(game.gameId, rec);
         if (r.text) setQuestion((q) => (q.trim() ? `${q.trim()} ${r.text}` : r.text));
         else setCoachError("聞き取れませんでした。もう一度話してください");
       } catch (e: any) {
@@ -834,7 +834,10 @@ export default function PlayScreen() {
             {/* 音声入力：押して話し、もう一度押すと止まる。文字は質問欄に入るので、直してから「聞く」 */}
             <TouchableOpacity
               style={[styles.micButton, recorder.recording && styles.micButtonOn, (!target || asking || transcribing) && !recorder.recording && styles.askButtonDisabled]}
-              onPress={recorder.recording ? recorder.stop : () => { if (!needConsent()) recorder.start(); }}
+              onPress={() => {
+                if (recorder.recording) void recorder.stop();
+                else if (!needConsent()) void recorder.start();
+              }}
               disabled={(!target || asking || transcribing) && !recorder.recording}
             >
               <Text style={styles.micText}>

@@ -153,13 +153,17 @@ export function sendFeedback(gameId: string, questionId: string, good: boolean, 
  * 音声入力：録音を文字にする（Phase 2。2026-09-22）。質問は送らない（質問欄に入れて、利用者が直してから送る）
  * ⚠️ 録音はサーバーでも保存しない
  */
-export async function transcribeInGame(gameId: string, blob: Blob, mime: string, seconds: number) {
+export async function transcribeInGame(gameId: string, rec: { mime: string; seconds: number; blob?: Blob; base64?: string }) {
   const consent = encodeURIComponent(getConsent()?.version ?? "");
-  const res = await fetch(`${API_BASE}/game/${gameId}/transcribe?seconds=${seconds.toFixed(1)}&consent=${consent}`, {
-    method: "POST",
-    headers: { "Content-Type": mime },
-    body: blob,
-  });
+  const url = `${API_BASE}/game/${gameId}/transcribe?seconds=${rec.seconds.toFixed(1)}&consent=${consent}`;
+  // ブラウザ版は録音をそのまま送る。アプリ版は base64 にして JSON で送る（React Native の fetch はファイルをそのまま送れない）
+  const res = rec.blob
+    ? await fetch(url, { method: "POST", headers: { "Content-Type": rec.mime }, body: rec.blob })
+    : await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: rec.base64, mime: rec.mime }),
+      });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error ?? `サーバーのエラー（${res.status}）`);
   return json as { text: string; seconds: number | null; yen: number | null };
