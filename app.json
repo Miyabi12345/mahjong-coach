@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "コーチへの質問を声で入力するときに、マイクを使います。録音は文字にするためだけに送り、保存しません。",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "bundleIdentifier": "com.mahjongcoach.app"
     },
     "android": {
       "adaptiveIcon": {
